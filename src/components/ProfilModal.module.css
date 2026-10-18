@@ -1,0 +1,177 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal {
+  background: var(--bg-tertiary);
+  border-radius: 12px;
+  width: 340px;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+}
+
+.bannerArea {
+  height: 100px;
+  position: relative;
+  background: var(--primary-dark);
+}
+
+.banner {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bannerDefault {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #C04E0D, #E8621A);
+}
+
+.kapatBtn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0,0,0,0.5);
+  color: white;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.kapatBtn:hover { background: rgba(0,0,0,0.8); }
+
+.avatarWrapper {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 16px;
+  margin-top: -36px;
+  margin-bottom: 8px;
+}
+
+.avatarContainer {
+  position: relative;
+}
+
+.avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 4px solid var(--bg-tertiary);
+  object-fit: cover;
+}
+
+.avatarPlaceholder {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 4px solid var(--bg-tertiary);
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: bold;
+  color: var(--text-primary);
+}
+
+.statusDot {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 3px solid var(--bg-tertiary);
+}
+
+.premiumBadge {
+  background: linear-gradient(135deg, #FFD700, #F5A623);
+  color: #1A1008;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 12px;
+  align-self: flex-end;
+  margin-bottom: 4px;
+}
+
+.bilgiler {
+  padding: 0 16px 20px;
+}
+
+.adRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ad {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.kullaniciAdi {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.ozelDurum {
+  background: var(--bg-quaternary);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.bolum {
+  margin-bottom: 12px;
+}
+
+.bolumBaslik {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.6px;
+  margin-bottom: 4px;
+}
+
+.bolumIcerik {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.aksiyonlar {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.mesajBtn {
+  flex: 1;
+  background: var(--primary);
+  color: white;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.mesajBtn:hover:not(:disabled) { background: var(--primary-dark); }
+.mesajBtn:disabled { opacity: 0.6; cursor: not-allowed; }

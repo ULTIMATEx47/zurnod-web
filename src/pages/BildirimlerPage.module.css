@@ -1,0 +1,15 @@
+.container { display: flex; flex: 1; flex-direction: column; height: 100%; overflow: hidden; background: var(--bg-primary); }
+.header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--divider); }
+.baslik { font-size: 20px; font-weight: 800; color: var(--text-primary); }
+.hepsiniOkuBtn { background: var(--bg-quaternary); color: var(--text-secondary); border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+.hepsiniOkuBtn:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.liste { flex: 1; overflow-y: auto; }
+.bos { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 12px; color: var(--text-muted); font-size: 15px; }
+.item { display: flex; align-items: flex-start; gap: 14px; padding: 14px 24px; border-bottom: 1px solid var(--divider); transition: background 0.15s; position: relative; }
+.item:hover { background: var(--bg-quaternary); }
+.itemOkunmamis { background: rgba(232,98,26,0.06); }
+.ikon { font-size: 24px; flex-shrink: 0; width: 40px; height: 40px; background: var(--bg-elevated); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.bilgi { flex: 1; min-width: 0; }
+.mesaj { font-size: 14px; color: var(--text-primary); margin-bottom: 4px; line-height: 1.5; }
+.tarih { font-size: 12px; color: var(--text-muted); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--primary); flex-shrink: 0; margin-top: 4px; }

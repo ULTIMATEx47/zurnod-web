@@ -1,0 +1,99 @@
+.layout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 72px;
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  gap: 4px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--divider);
+}
+
+.logo {
+  width: 48px;
+  height: 48px;
+  background: var(--primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-radius 0.2s;
+  margin-bottom: 4px;
+}
+
+.logo:hover {
+  border-radius: 16px;
+}
+
+.divider {
+  width: 32px;
+  height: 2px;
+  background: var(--divider);
+  border-radius: 1px;
+  margin: 4px 0;
+}
+
+.navBtn {
+  width: 48px;
+  height: 48px;
+  background: var(--bg-tertiary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  position: relative;
+  transition: border-radius 0.2s, background 0.2s, color 0.2s;
+}
+
+.navBtn:hover {
+  border-radius: 16px;
+  background: var(--primary);
+  color: white;
+}
+
+.navBtnActive {
+  border-radius: 16px;
+  background: var(--primary);
+  color: white;
+}
+
+.badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  background: var(--notif-red);
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+.avatarBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  overflow: hidden;
+}
