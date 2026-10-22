@@ -35,8 +35,8 @@ export default function MesajItem({ mesaj, benimMi, onceki, onProfil, onCevapla,
   const ayniGonderici = onceki?.yazar?._id === mesaj.yazar?._id &&
     (new Date(mesaj.olusturulmaTarihi).getTime() - new Date(onceki.olusturulmaTarihi).getTime()) < 300000;
 
-  const reaksiyon = async (emoji: string) => {
-    await api.reaksiyonEkle(mesaj._id, emoji);
+  const reaksiyon = (emoji: string) => {
+    api.socketTepki(mesaj._id, emoji);
     setReaksiyonPicker(false);
   };
 

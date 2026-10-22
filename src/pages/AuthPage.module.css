@@ -1,4 +1,6 @@
 .bg {
+  flex: 1;
+  width: 100%;
   min-height: 100vh;
   background: var(--bg-primary);
   display: flex;
@@ -43,6 +45,7 @@
   font-size: 14px;
   color: var(--text-secondary);
   margin-bottom: 8px;
+  text-align: center;
 }
 
 .form {
@@ -64,6 +67,7 @@
   font-weight: 700;
   color: var(--text-secondary);
   letter-spacing: 0.6px;
+  text-transform: uppercase;
 }
 
 .input {
@@ -99,6 +103,7 @@
   justify-content: center;
   margin-top: 4px;
   transition: background 0.2s;
+  gap: 8px;
 }
 
 .btn:hover:not(:disabled) {
@@ -120,6 +125,7 @@
   font-size: 13px;
   color: var(--text-muted);
   margin-top: 8px;
+  text-align: center;
 }
 
 .link {
@@ -129,4 +135,11 @@
 
 .link:hover {
   text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 28px 20px;
+    border-radius: 12px;
+  }
 }

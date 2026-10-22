@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch, dmleriGetirThunk, dmMesajlariGetirThunk, setSecilenDM, dmMesajEkle, dmGuncelleRedux } from '../store';
@@ -38,7 +38,6 @@ export default function DMPage() {
       if (dm) {
         dispatch(setSecilenDM(dm));
         dispatch(dmMesajlariGetirThunk(dmId));
-        // Socket odasına katıl
         const socket = socketAl();
         if (socket) socket.emit('dm_oda_katil', dmId);
       }
@@ -47,7 +46,6 @@ export default function DMPage() {
     }
   }, [dmId, dmler.length]);
 
-  // Socket listeners
   useEffect(() => {
     const socket = socketAl();
     if (!socket) return;
@@ -60,27 +58,22 @@ export default function DMPage() {
     return () => { socket.off('yeni_dm_mesaj', handler); };
   }, [dmId]);
 
-  // Scroll to bottom
   useEffect(() => {
     altRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [mesajlar]);
 
   const karsiKisi = secilenDM?.katilimcilar?.find(k => k._id !== kullanici?.id && k.id !== kullanici?.id);
 
-  const gonder = async () => {
+  const gonder = () => {
     if (!metin.trim() || !dmId) return;
     const icerik = metin.trim();
     setMetin('');
-    try {
-      if (duzenlemeModu) {
-        await api.istek('PUT', `/api/mesajlar/${duzenlemeModu.id}`, { icerik });
-        setDuzenlemeModu(null);
-      } else {
-        await api.dmMesajGonder(dmId, icerik, 'metin', cevapVerilen?._id);
-        setCevapVerilen(null);
-      }
-    } catch (err) {
-      console.error(err);
+    if (duzenlemeModu) {
+      api.socketMesajDuzenle(duzenlemeModu.id, icerik);
+      setDuzenlemeModu(null);
+    } else {
+      api.socketDmGonder(dmId, icerik, 'metin', cevapVerilen?._id);
+      setCevapVerilen(null);
     }
   };
 
@@ -103,7 +96,7 @@ export default function DMPage() {
           const base64 = ev.target?.result as string;
           const url = await api.gorselYukle(base64);
           const tip = file.type.startsWith('video') ? 'video' : 'gorsel';
-          await api.dmMesajGonder(dmId, url, tip);
+          api.socketDmGonder(dmId, url, tip);
         };
         reader.readAsDataURL(file);
       } catch (err) { console.error(err); }
@@ -116,10 +109,10 @@ export default function DMPage() {
     if (!arkadas.trim()) return;
     setArkDmYukleniyor(true);
     try {
-      // Kullanıcı ara
       const sonuc = await api.kullanicilariAra(arkadas);
-      if (sonuc.length > 0) {
-        const dm = await api.dmAc(sonuc[0]._id);
+      const liste = Array.isArray(sonuc) ? sonuc : (sonuc.kullanicilar || []);
+      if (liste.length > 0) {
+        const dm = await api.dmAc(liste[0]._id);
         dispatch(dmGuncelleRedux(dm));
         navigate(`/dm/${dm._id}`);
         setArkadas('');
@@ -136,16 +129,14 @@ export default function DMPage() {
 
   return (
     <div className={s.container}>
-      {/* Sol Panel - DM listesi */}
       <div className={s.panel}>
         <div className={s.panelHeader}>
           <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>Mesajlar</span>
         </div>
-        {/* Yeni DM aç */}
         <div className={s.newDm}>
           <input
             className={s.newDmInput}
-            placeholder="Kullanıcı adı ara..."
+            placeholder="Kullanici adi ara..."
             value={arkadas}
             onChange={e => setArkadas(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && dmAc()}
@@ -173,7 +164,7 @@ export default function DMPage() {
                   <span className={s.dmAd}>{diger?.goruntulenenAd || diger?.kullaniciAdi || 'Bilinmeyen'}</span>
                   {dm.sonMesaj && (
                     <span className={s.dmSon}>
-                      {dm.sonMesaj.icerik?.substring(0, 30) || '📎 Medya'}
+                      {dm.sonMesaj.icerik?.substring(0, 30) || 'Medya'}
                     </span>
                   )}
                 </div>
@@ -183,10 +174,8 @@ export default function DMPage() {
         </div>
       </div>
 
-      {/* Sohbet Alanı */}
       {secilenDM && karsiKisi ? (
         <div className={s.chat}>
-          {/* Başlık */}
           <div className={s.chatHeader}>
             <button className={s.avatarBtn} onClick={() => setProfilKisi(karsiKisi)}>
               {karsiKisi.avatar
@@ -197,11 +186,10 @@ export default function DMPage() {
             </button>
             <div>
               <div className={s.headerAd}>{karsiKisi.goruntulenenAd || karsiKisi.kullaniciAdi}</div>
-              <div className={s.headerDurum}>{durum(karsiKisi) === 'online' ? '🟢 Çevrimiçi' : '⚫ Çevrimdışı'}</div>
+              <div className={s.headerDurum}>{durum(karsiKisi) === 'online' ? 'Cevrimici' : 'Cevrimdisi'}</div>
             </div>
           </div>
 
-          {/* Mesajlar */}
           <div className={s.messages}>
             {mesajlar.map((mesaj, i) => (
               <MesajItem
@@ -212,50 +200,45 @@ export default function DMPage() {
                 onProfil={() => setProfilKisi(mesaj.yazar)}
                 onCevapla={() => setCevapVerilen(mesaj)}
                 onDuzenle={() => { setDuzenlemeModu({ id: mesaj._id, icerik: mesaj.icerik }); setMetin(mesaj.icerik); }}
-                onSil={async () => {
-                  await api.istek('DELETE', `/api/mesajlar/${mesaj._id}`);
-                }}
+                onSil={() => { api.socketMesajSil(mesaj._id); }}
                 cevapVerilen={mesaj.cevapVerilen}
               />
             ))}
             <div ref={altRef} />
           </div>
 
-          {/* Yanıt */}
           {cevapVerilen && (
             <div className={s.cevapBar}>
-              <span>↩️ <b>{cevapVerilen.yazar?.goruntulenenAd}</b>: {cevapVerilen.icerik?.substring(0, 60)}</span>
-              <button onClick={() => setCevapVerilen(null)} className={s.cevapKapat}>✕</button>
+              <span>Yanitlaniyor: <b>{cevapVerilen.yazar?.goruntulenenAd}</b>: {cevapVerilen.icerik?.substring(0, 60)}</span>
+              <button onClick={() => setCevapVerilen(null)} className={s.cevapKapat}>x</button>
             </div>
           )}
 
-          {/* Düzenleme */}
           {duzenlemeModu && (
             <div className={s.cevapBar}>
-              <span>✏️ Mesaj düzenleniyor</span>
-              <button onClick={() => { setDuzenlemeModu(null); setMetin(''); }} className={s.cevapKapat}>✕</button>
+              <span>Mesaj duzenleniyor</span>
+              <button onClick={() => { setDuzenlemeModu(null); setMetin(''); }} className={s.cevapKapat}>x</button>
             </div>
           )}
 
-          {/* Input */}
           <div className={s.inputArea}>
-            <button className={s.mediaBtn} onClick={gorselSec} disabled={yukleniyor} title="Medya gönder">📎</button>
+            <button className={s.mediaBtn} onClick={gorselSec} disabled={yukleniyor} title="Medya">??</button>
             <input
               ref={inputRef}
               className={s.input}
-              placeholder={`@${karsiKisi.kullaniciAdi}'a mesaj gönder`}
+              placeholder={`@${karsiKisi.kullaniciAdi} kisisine mesaj gonder`}
               value={metin}
               onChange={e => setMetin(e.target.value)}
               onKeyDown={handleKeyDown}
             />
-            <button className={s.sendBtn} onClick={gonder} disabled={!metin.trim()}>➤</button>
+            <button className={s.sendBtn} onClick={gonder} disabled={!metin.trim()}>?</button>
           </div>
         </div>
       ) : (
         <div className={s.bos}>
-          <span style={{ fontSize: 64 }}>💬</span>
-          <h2 style={{ color: 'var(--text-primary)', marginTop: 16 }}>Mesajlarını seç</h2>
-          <p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Bir konuşma seç veya yeni bir tane başlat</p>
+          <span style={{ fontSize: 64 }}>??</span>
+          <h2 style={{ color: 'var(--text-primary)', marginTop: 16 }}>Mesajlarini sec</h2>
+          <p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Bir konusma sec veya yeni bir tane baslat</p>
         </div>
       )}
 

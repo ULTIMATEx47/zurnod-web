@@ -4,14 +4,7 @@ const API_URL = 'https://zurnod-backend.onrender.com';
 
 let socket: Socket | null = null;
 
-// ==================== STORAGE (localStorage yerine AsyncStorage) ====================
-const storage = {
-  getItem: (key: string) => Promise.resolve(localStorage.getItem(key)),
-  setItem: (key: string, value: string) => { localStorage.setItem(key, value); return Promise.resolve(); },
-  removeItem: (key: string) => { localStorage.removeItem(key); return Promise.resolve(); },
-};
-
-// ==================== HTTP İSTEKLER ====================
+// ==================== HTTP ====================
 export const istek = async (method: string, yol: string, veri?: any) => {
   const token = localStorage.getItem('token');
   const yanit = await fetch(`${API_URL}${yol}`, {
@@ -23,7 +16,7 @@ export const istek = async (method: string, yol: string, veri?: any) => {
     body: veri ? JSON.stringify(veri) : undefined
   });
   const json = await yanit.json();
-  if (!yanit.ok) throw new Error(json.hata || 'Bir hata oluştu');
+  if (!yanit.ok) throw new Error(json.hata || 'Bir hata olustu');
   return json;
 };
 
@@ -69,11 +62,20 @@ export const sifreDegistir = async (mevcutSifre: string, yeniSifre: string) => {
 
 // ==================== SOCKET ====================
 export const socketBaglan = (token: string) => {
-  if (socket?.connected) return socket;
+  if (socket?.connected) {
+    socket.emit('kimlik_dogrula', token);
+    return socket;
+  }
   socket = io(API_URL, {
-    auth: { token },
     transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionDelay: 1000,
   });
+  socket.on('connect', () => {
+    console.log('Socket baglandi');
+    socket?.emit('kimlik_dogrula', token);
+  });
+  socket.on('disconnect', () => console.log('Socket koptu'));
   return socket;
 };
 
@@ -83,59 +85,95 @@ export const socketBaglantiKes = () => {
   if (socket) { socket.disconnect(); socket = null; }
 };
 
+// ==================== SOCKET MESAJ ====================
+export const socketMesajGonder = (kanalId: string, icerik: string, tip?: string, cevapVerilenId?: string) => {
+  socket?.emit('mesaj_gonder', { kanalId, icerik, tip: tip || 'metin', cevapVerilenId });
+};
+
+export const socketDmGonder = (dmId: string, icerik: string, tip?: string, cevapVerilenId?: string) => {
+  socket?.emit('dm_gonder', { dmId, icerik, tip: tip || 'metin', cevapVerilenId });
+};
+
+export const socketMesajDuzenle = (mesajId: string, icerik: string) => {
+  socket?.emit('mesaj_duzenle', { mesajId, icerik });
+};
+
+export const socketMesajSil = (mesajId: string) => {
+  socket?.emit('mesaj_sil', mesajId);
+};
+
+export const socketTepki = (mesajId: string, emoji: string) => {
+  socket?.emit('mesaj_tepki', { mesajId, emoji });
+};
+
+export const kanalaKatil = (kanalId: string) => {
+  socket?.emit('kanala_katil', kanalId);
+};
+
+export const sunucuyaKatilSocket = (sunucuId: string) => {
+  socket?.emit('sunucuya_katil', sunucuId);
+};
+
 // ==================== SUNUCULAR ====================
 export const sunuculariGetir = async () => istek('GET', '/api/sunucular');
 export const sunucuOlustur = async (ad: string, ikon?: string) => istek('POST', '/api/sunucular', { ad, ikon });
 export const sunucuGuncelle = async (id: string, veri: any) => istek('PUT', `/api/sunucular/${id}`, veri);
 export const sunucuSil = async (id: string) => istek('DELETE', `/api/sunucular/${id}`);
 export const sunucuyaKatil = async (davetKodu: string) => istek('POST', `/api/sunucular/${davetKodu}/katil`);
-export const sunucudanAyril = async (id: string) => istek('POST', `/api/sunucular/${id}/ayril`);
+export const sunucudanAyril = async (id: string) => istek('DELETE', `/api/sunucular/${id}/ayril`);
 export const sunucuDavetLinkiKatil = async (link: string) => istek('POST', `/api/sunucular/davet/${link}`);
+export const sunucuDetayGetir = async (id: string) => istek('GET', `/api/sunucular/${id}`);
 
 // ==================== KANALLAR ====================
-export const kanallariGetir = async (sunucuId: string) => istek('GET', `/api/sunucular/${sunucuId}/kanallar`);
+// Backend'de ayri /kanallar endpoint yok; sunucu detayi icinden gelir
+export const kanallariGetir = async (sunucuId: string) => {
+  const sunucu = await istek('GET', `/api/sunucular/${sunucuId}`);
+  return sunucu.kanallar || [];
+};
 export const kanalOlustur = async (sunucuId: string, ad: string, tip: string, kategori: string) =>
   istek('POST', `/api/sunucular/${sunucuId}/kanallar`, { ad, tip, kategori });
-export const kanalGuncelle = async (sunucuId: string, kanalId: string, veri: any) =>
-  istek('PUT', `/api/sunucular/${sunucuId}/kanallar/${kanalId}`, veri);
 export const kanalSil = async (sunucuId: string, kanalId: string) =>
   istek('DELETE', `/api/sunucular/${sunucuId}/kanallar/${kanalId}`);
 
 // ==================== MESAJLAR ====================
 export const mesajlariGetir = async (kanalId: string, sayfa = 1) =>
   istek('GET', `/api/kanallar/${kanalId}/mesajlar?sayfa=${sayfa}`);
-export const mesajGonder = async (kanalId: string, icerik: string, tip?: string, cevapVerilenId?: string) =>
-  istek('POST', `/api/kanallar/${kanalId}/mesajlar`, { icerik, tip, cevapVerilenId });
-export const mesajSil = async (mesajId: string) => istek('DELETE', `/api/mesajlar/${mesajId}`);
-export const mesajDuzenle = async (mesajId: string, icerik: string) =>
-  istek('PUT', `/api/mesajlar/${mesajId}`, { icerik });
-export const reaksiyonEkle = async (mesajId: string, emoji: string) =>
-  istek('POST', `/api/mesajlar/${mesajId}/reaksiyon`, { emoji });
+export const mesajSil = async (id: string) =>
+  istek('DELETE', `/api/mesajlar/${id}/herkesten-sil`);
+export const mesajDuzenle = async (id: string, icerik: string) =>
+  istek('PUT', `/api/mesajlar/${id}`, { icerik });
 
 // ==================== DM ====================
-export const dmleriGetir = async () => istek('GET', '/api/dm');
-export const dmAc = async (kullaniciId: string) => istek('POST', '/api/dm', { kullaniciId });
+export const dmleriGetir = async () => istek('GET', '/api/dmler');
+export const dmAc = async (kullaniciId: string) => istek('POST', '/api/dmler', { kullaniciId });
 export const dmMesajlariGetir = async (dmId: string, sayfa = 1) =>
-  istek('GET', `/api/dm/${dmId}/mesajlar?sayfa=${sayfa}`);
-export const dmMesajGonder = async (dmId: string, icerik: string, tip?: string, cevapVerilenId?: string) =>
-  istek('POST', `/api/dm/${dmId}/mesajlar`, { icerik, tip, cevapVerilenId });
+  istek('GET', `/api/dmler/${dmId}/mesajlar?sayfa=${sayfa}`);
+export const dmMesajGonder = (dmId: string, icerik: string, tip?: string, cevapVerilenId?: string) => {
+  socketDmGonder(dmId, icerik, tip, cevapVerilenId);
+};
 
-// ==================== ARKADAŞLAR ====================
+// ==================== ARKADASLAR ====================
 export const arkadaslariGetir = async () => istek('GET', '/api/arkadaslar');
-export const arkadaslikIstekleriniGetir = async () => istek('GET', '/api/arkadaslar/istekler');
+export const arkadaslikIstekleriniGetir = async () => istek('GET', '/api/arkadaslar/bekleyen');
 export const arkadaslikIstegiGonder = async (kullaniciAdi: string) =>
   istek('POST', '/api/arkadaslar/istek', { kullaniciAdi });
 export const arkadaslikIstegiKabul = async (arkadaslikId: string) =>
-  istek('PUT', `/api/arkadaslar/${arkadaslikId}/kabul`);
+  istek('PUT', `/api/arkadaslar/istek/${arkadaslikId}`, { aksiyon: 'kabul' });
 export const arkadaslikIstegiReddet = async (arkadaslikId: string) =>
-  istek('PUT', `/api/arkadaslar/${arkadaslikId}/reddet`);
+  istek('PUT', `/api/arkadaslar/istek/${arkadaslikId}`, { aksiyon: 'red' });
 export const arkadasSil = async (arkadaslikId: string) =>
   istek('DELETE', `/api/arkadaslar/${arkadaslikId}`);
 
-// ==================== BİLDİRİMLER ====================
-export const bildirimleriGetir = async () => istek('GET', '/api/bildirimler');
-export const bildirimOku = async (bildirimId: string) => istek('PUT', `/api/bildirimler/${bildirimId}/oku`);
-export const tumBildirimleriOku = async () => istek('PUT', '/api/bildirimler/hepsini-oku');
+// ==================== BILDIRIMLER ====================
+export const bildirimleriGetir = async () => {
+  try { return await istek('GET', '/api/bildirimler'); } catch { return []; }
+};
+export const bildirimOku = async (bildirimId: string) => {
+  try { return await istek('PUT', `/api/bildirimler/${bildirimId}/oku`); } catch { return {}; }
+};
+export const tumBildirimleriOku = async () => {
+  try { return await istek('PUT', '/api/bildirimler/hepsini-oku'); } catch { return {}; }
+};
 
 // ==================== DURUM ====================
 export const durumlariGetir = async () => istek('GET', '/api/durumlar');
@@ -145,20 +183,23 @@ export const durumSil = async (durumId: string) => istek('DELETE', `/api/durumla
 export const durumGor = async (durumId: string) => istek('POST', `/api/durumlar/${durumId}/gor`);
 
 // ==================== ARAMA ====================
-export const kullanicilariAra = async (sorgu: string) => istek('GET', `/api/kullanicilar/ara?sorgu=${sorgu}`);
-export const kullaniciBilgisiGetir = async (kullaniciId: string) => istek('GET', `/api/kullanicilar/${kullaniciId}`);
+export const kullanicilariAra = async (sorgu: string) =>
+  istek('GET', `/api/kullanici/ara?kullaniciAdi=${encodeURIComponent(sorgu)}`);
+export const kullaniciBilgisiGetir = async (kullaniciId: string) => {
+  try { return await istek('GET', `/api/kullanicilar/${kullaniciId}`); } catch { return null; }
+};
 
-// ==================== GÖRSEL YÜKLEME ====================
+// ==================== GORSEL ====================
 export const gorselYukle = async (base64: string) => {
   const yanit = await istek('POST', '/api/gorseller', { gorsel: base64 });
   return yanit.url;
 };
 
-// ==================== SUNUCU ÜYELERİ / ROLLER ====================
+// ==================== SUNUCU UYELER / ROLLER ====================
 export const sunucuUyeleriGetir = async (sunucuId: string) =>
   istek('GET', `/api/sunucular/${sunucuId}/uyeler`);
 export const sunucudanKick = async (sunucuId: string, kullaniciId: string) =>
-  istek('POST', `/api/sunucular/${sunucuId}/kick`, { kullaniciId });
+  istek('DELETE', `/api/sunucular/${sunucuId}/uyeler/${kullaniciId}/at`);
 export const sunucudanYasak = async (sunucuId: string, kullaniciId: string) =>
   istek('POST', `/api/sunucular/${sunucuId}/ban`, { kullaniciId });
 export const rolOlustur = async (sunucuId: string, ad: string, renk: string) =>
@@ -166,17 +207,17 @@ export const rolOlustur = async (sunucuId: string, ad: string, renk: string) =>
 export const rolSil = async (sunucuId: string, rolId: string) =>
   istek('DELETE', `/api/sunucular/${sunucuId}/roller/${rolId}`);
 export const uyeyeRolVer = async (sunucuId: string, kullaniciId: string, rolId: string) =>
-  istek('POST', `/api/sunucular/${sunucuId}/uyeler/${kullaniciId}/roller`, { rolId });
+  istek('PUT', `/api/sunucular/${sunucuId}/uyeler/${kullaniciId}/roller`, { rolId });
 export const uyedenRolAl = async (sunucuId: string, kullaniciId: string, rolId: string) =>
   istek('DELETE', `/api/sunucular/${sunucuId}/uyeler/${kullaniciId}/roller/${rolId}`);
 export const uyeYoneticiYap = async (sunucuId: string, kullaniciId: string) =>
-  istek('POST', `/api/sunucular/${sunucuId}/uyeler/${kullaniciId}/yonetici`);
+  istek('PUT', `/api/sunucular/${sunucuId}/uyeler/${kullaniciId}/rol`, { rol: 'yonetici' });
 
-// ==================== PREMİUM ====================
+// ==================== PREMIUM ====================
 export const premiumKodKullan = async (kod: string) =>
   istek('POST', '/api/premium/kod-kullan', { kod });
 
-// ==================== ADMİN ====================
+// ==================== ADMIN ====================
 export const adminPremiumKodOlustur = async (adet: number, gecerlilikGun: number) =>
   istek('POST', '/api/admin/premium-kod-olustur', { adet, gecerlilikGun });
 export const adminPremiumKodlariGetir = async () =>
@@ -190,4 +231,4 @@ export const adminKullanicilariGetir = async () =>
 export const adminKullaniciSil = async (kullaniciId: string) =>
   istek('DELETE', `/api/admin/kullanicilar/${kullaniciId}`);
 export const adminKullaniciYoneticiYap = async (kullaniciId: string) =>
-  istek('POST', `/api/admin/kullanicilar/${kullaniciId}/yonetici`);
+  istek('PUT', `/api/admin/kullanicilar/${kullaniciId}/yetki`, { isAdmin: true });
