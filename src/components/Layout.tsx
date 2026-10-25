@@ -41,23 +41,71 @@ export default function Layout() {
     const socket = socketBaglan(token);
     socketSetupDone.current = true;
 
-    socket.on('yeni_mesaj', (mesaj: any) => dispatch(mesajEkle(mesaj)));
+    // ---- Kanal mesajları ----
+    socket.on('yeni_mesaj', (mesaj: any) => {
+      dispatch(mesajEkle(mesaj));
+    });
+    socket.on('mesaj_duzenlendi', (data: any) => {
+      // { kanalId, mesaj } veya doğrudan mesaj
+      const mesaj = data.mesaj || data;
+      dispatch(mesajGuncelle(mesaj));
+    });
+    socket.on('mesaj_silindi', (data: any) => {
+      // string mesajId veya { mesajId }
+      const id = typeof data === 'string' ? data : (data.mesajId || data._id || data);
+      dispatch(mesajSilRedux(id));
+    });
+
+    // ---- DM mesajları ----
+    // Backend 'yeni_dm_mesaji' emit ediyor (sonunda 'i' var!)
+    socket.on('yeni_dm_mesaji', (data: any) => {
+      const mesaj = data.mesaj || data;
+      dispatch(dmMesajEkle(mesaj));
+      // DM listesini güncelle (son mesaj için)
+      if (data.dmId || mesaj.dm) {
+        dispatch(dmleriGetirThunk());
+      }
+    });
+    // Eski event ismi de dinle (fallback)
     socket.on('yeni_dm_mesaj', (data: any) => {
       const mesaj = data.mesaj || data;
       dispatch(dmMesajEkle(mesaj));
       if (data.dm) dispatch(dmGuncelleRedux(data.dm));
     });
-    socket.on('mesaj_guncellendi', (mesaj: any) => dispatch(mesajGuncelle(mesaj)));
-    socket.on('mesaj_silindi', (data: any) => {
-      const id = data.mesajId || data;
-      dispatch(mesajSilRedux(id));
+    socket.on('dm_mesaj_guncellendi', (data: any) => {
+      const mesaj = data.mesaj || data;
+      dispatch(mesajGuncelle(mesaj));
+    });
+    socket.on('dm_mesaj_silindi', (data: any) => {
+      const id = typeof data === 'string' ? data : (data.mesajId || data._id || data);
       dispatch(dmMesajSilRedux(id));
     });
+
+    // ---- Reaksiyonlar ----
+    socket.on('mesaj_guncellendi', (mesaj: any) => dispatch(mesajGuncelle(mesaj)));
     socket.on('reaksiyon_guncellendi', (data: any) => dispatch(reaksiyonGuncelle(data)));
+
+    // ---- Online/Offline durumu ----
+    // Backend 'arkadasDurumGuncelle' emit ediyor, { kullaniciId, durum }
+    socket.on('arkadasDurumGuncelle', (data: any) => {
+      const { kullaniciId, durum } = data;
+      if (durum === 'gorunmez' || durum === 'offline') {
+        dispatch(kullaniciCevrimiciBosalt(kullaniciId));
+      } else {
+        dispatch(kullaniciCevrimiciEkle(kullaniciId));
+      }
+    });
+    // Fallback eski event isimleri
     socket.on('cevrimici_kullanicilar', (ids: string[]) => dispatch(setCevrimiciKullanicilar(ids)));
     socket.on('kullanici_cevrimici', (id: string) => dispatch(kullaniciCevrimiciEkle(id)));
     socket.on('kullanici_cevrimdisi', (id: string) => dispatch(kullaniciCevrimiciBosalt(id)));
+
+    // ---- Bildirimler ----
     socket.on('yeni_bildirim', (b: any) => dispatch(bildirimEkle(b)));
+
+    // ---- Sunucu güncellemeleri ----
+    socket.on('sunucu_guncellendi', () => dispatch(sunuculariGetirThunk()));
+    socket.on('kanal_olusturuldu', () => {/* handled by SunucularPage */});
 
     return () => { socket.off(); };
   }, [kullanici]);

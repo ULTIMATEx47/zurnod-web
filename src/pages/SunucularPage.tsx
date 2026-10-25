@@ -33,7 +33,9 @@ export default function SunucularPage() {
   const [uyelerPanel, setUyelerPanel] = useState(false);
   const altRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const currentKanalId = useRef<string | undefined>(kanalId);
 
+  useEffect(() => { currentKanalId.current = kanalId; }, [kanalId]);
   useEffect(() => { dispatch(sunuculariGetirThunk()); }, []);
 
   useEffect(() => {
@@ -42,6 +44,7 @@ export default function SunucularPage() {
       if (sunucu) {
         dispatch(setSecilenSunucu(sunucu));
         dispatch(kanallariGetirThunk(sunucuId));
+        // Sunucu odasına katıl
         const socket = socketAl();
         if (socket) socket.emit('sunucuya_katil', sunucuId);
       }
@@ -55,6 +58,7 @@ export default function SunucularPage() {
         dispatch(setSecilenKanal(kanal));
         if (kanal.tip === 'yazi') {
           dispatch(mesajlariGetirThunk(kanalId));
+          // Kanal odasına katıl
           const socket = socketAl();
           if (socket) socket.emit('kanala_katil', kanalId);
         }
@@ -62,15 +66,33 @@ export default function SunucularPage() {
     }
   }, [kanalId, kanallar.length]);
 
+  // Socket listener - kanal mesajları
   useEffect(() => {
     const socket = socketAl();
-    if (!socket || !kanalId) return;
-    const handler = (mesaj: any) => {
-      if (mesaj.kanal === kanalId) dispatch(mesajEkle(mesaj));
+    if (!socket) return;
+
+    const yeniMesajHandler = (mesaj: any) => {
+      if (mesaj.kanal === currentKanalId.current) dispatch(mesajEkle(mesaj));
     };
-    socket.on('yeni_mesaj', handler);
-    return () => { socket.off('yeni_mesaj', handler); };
-  }, [kanalId]);
+    const duzenleHandler = (data: any) => {
+      const mesaj = data.mesaj || data;
+      dispatch(mesajGuncelle(mesaj));
+    };
+    const silHandler = (data: any) => {
+      const id = typeof data === 'string' ? data : (data.mesajId || data._id);
+      dispatch(mesajSilRedux(id));
+    };
+
+    socket.on('yeni_mesaj', yeniMesajHandler);
+    socket.on('mesaj_duzenlendi', duzenleHandler);
+    socket.on('mesaj_silindi', silHandler);
+
+    return () => {
+      socket.off('yeni_mesaj', yeniMesajHandler);
+      socket.off('mesaj_duzenlendi', duzenleHandler);
+      socket.off('mesaj_silindi', silHandler);
+    };
+  }, []);
 
   useEffect(() => { altRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [mesajlar]);
 
@@ -118,10 +140,16 @@ export default function SunucularPage() {
   const davetleKatil = async () => {
     if (!davetKod.trim()) return;
     try {
-      await api.sunucuDavetLinkiKatil(davetKod);
+      // Davet linki tam URL olabilir, sadece kodu al
+      let kod = davetKod.trim();
+      if (kod.includes('/')) kod = kod.split('/').pop() || kod;
+      await api.sunucuDavetLinkiKatil(kod);
       dispatch(sunuculariGetirThunk());
       setDavetKod('');
-    } catch (err) { console.error(err); }
+      setSunucuOlusturModal(false);
+    } catch (err: any) {
+      alert(err.message || 'Sunucuya katılınamadı');
+    }
   };
 
   const kanalOlustur = async () => {
@@ -134,7 +162,7 @@ export default function SunucularPage() {
     } catch (err) { console.error(err); }
   };
 
-  const kanalIkonu = (tip: string) => tip === 'ses' ? '??' : tip === 'video' ? '??' : '#';
+  const kanalIkonu = (tip: string) => tip === 'ses' ? '🔊' : tip === 'video' ? '📹' : '#';
 
   const kategoriler: { [k: string]: typeof kanallar } = {};
   kanallar.forEach(k => {
@@ -147,6 +175,7 @@ export default function SunucularPage() {
 
   return (
     <div className={s.container}>
+      {/* Sunucu listesi */}
       <div className={s.sunucuList}>
         {sunucular.map(sunucu => (
           <button
@@ -161,11 +190,12 @@ export default function SunucularPage() {
             }
           </button>
         ))}
-        <button className={s.sunucuBtn} onClick={() => setSunucuOlusturModal(true)} title="Sunucu Olustur / Katil">
+        <button className={s.sunucuBtn} onClick={() => setSunucuOlusturModal(true)} title="Sunucu Oluştur / Katıl">
           <span style={{ fontSize: 22, color: 'var(--online)' }}>+</span>
         </button>
       </div>
 
+      {/* Kanal listesi */}
       {secilenSunucu && (
         <div className={s.kanalPanel}>
           {secilenSunucu.banner && (
@@ -195,11 +225,12 @@ export default function SunucularPage() {
             ))}
           </div>
           <button className={s.uyelerBtn} onClick={() => setUyelerPanel(p => !p)}>
-            ?? Uyeler ({secilenSunucu.uyeler?.length || 0})
+            👥 Üyeler ({secilenSunucu.uyeler?.length || 0})
           </button>
         </div>
       )}
 
+      {/* Sohbet */}
       {secilenKanal ? (
         <div className={s.chat}>
           <div className={s.chatHeader}>
@@ -229,59 +260,60 @@ export default function SunucularPage() {
 
               {cevapVerilen && (
                 <div className={s.cevapBar}>
-                  <span>Yanitlaniyor: <b>{cevapVerilen.yazar?.goruntulenenAd}</b>: {cevapVerilen.icerik?.substring(0, 60)}</span>
-                  <button onClick={() => setCevapVerilen(null)} className={s.cevapKapat}>x</button>
+                  <span>↩️ <b>{cevapVerilen.yazar?.goruntulenenAd}</b>: {cevapVerilen.icerik?.substring(0, 60)}</span>
+                  <button onClick={() => setCevapVerilen(null)} className={s.cevapKapat}>✕</button>
                 </div>
               )}
 
               {duzenlemeModu && (
                 <div className={s.cevapBar}>
-                  <span>Mesaj duzenleniyor</span>
-                  <button onClick={() => { setDuzenlemeModu(null); setMetin(''); }} className={s.cevapKapat}>x</button>
+                  <span>✏️ Mesaj düzenleniyor</span>
+                  <button onClick={() => { setDuzenlemeModu(null); setMetin(''); }} className={s.cevapKapat}>✕</button>
                 </div>
               )}
 
               <div className={s.inputArea}>
-                <button className={s.mediaBtn} onClick={gorselSec} title="Medya ekle">??</button>
+                <button className={s.mediaBtn} onClick={gorselSec} title="Medya ekle">📎</button>
                 <input
                   ref={inputRef}
                   className={s.input}
-                  placeholder={`#${secilenKanal.ad} kanalina mesaj gonder`}
+                  placeholder={`#${secilenKanal.ad} kanalına mesaj gönder`}
                   value={metin}
                   onChange={e => setMetin(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), gonder())}
                 />
-                <button className={s.sendBtn} onClick={gonder} disabled={!metin.trim()}>?</button>
+                <button className={s.sendBtn} onClick={gonder} disabled={!metin.trim()}>➤</button>
               </div>
             </>
           ) : (
             <div className={s.sesKanal}>
-              <span style={{ fontSize: 48 }}>{secilenKanal.tip === 'video' ? '??' : '??'}</span>
+              <span style={{ fontSize: 48 }}>{secilenKanal.tip === 'video' ? '📹' : '🔊'}</span>
               <p style={{ color: 'var(--text-secondary)', marginTop: 12 }}>
-                {secilenKanal.tip === 'ses' ? 'Ses kanali' : 'Video kanali'} - Web versiyonunda yakin??!
+                {secilenKanal.tip === 'ses' ? 'Ses kanalı' : 'Video kanalı'} — Web versiyonunda yakında!
               </p>
             </div>
           )}
         </div>
       ) : secilenSunucu ? (
         <div className={s.bos}>
-          <span style={{ fontSize: 48 }}>??</span>
+          <span style={{ fontSize: 48 }}>🌐</span>
           <h2 style={{ color: 'var(--text-primary)', marginTop: 16 }}>{secilenSunucu.ad}</h2>
-          <p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Bir kanal sec</p>
+          <p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Bir kanal seç</p>
         </div>
       ) : (
         <div className={s.bos}>
-          <span style={{ fontSize: 64 }}>??</span>
-          <h2 style={{ color: 'var(--text-primary)', marginTop: 16 }}>Bir sunucu sec</h2>
+          <span style={{ fontSize: 64 }}>🌐</span>
+          <h2 style={{ color: 'var(--text-primary)', marginTop: 16 }}>Bir sunucu seç</h2>
           <p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Sol taraftan bir sunucuya gir</p>
         </div>
       )}
 
+      {/* Üyeler paneli */}
       {uyelerPanel && secilenSunucu && (
         <div className={s.uyelerPanel}>
           <div className={s.uyelerHeader}>
-            <span>Uyeler</span>
-            <button onClick={() => setUyelerPanel(false)} className={s.kapat}>x</button>
+            <span>Üyeler</span>
+            <button onClick={() => setUyelerPanel(false)} className={s.kapat}>✕</button>
           </div>
           <div className={s.uyelerList}>
             {secilenSunucu.uyeler?.map((uye: any) => {
@@ -299,51 +331,53 @@ export default function SunucularPage() {
         </div>
       )}
 
+      {/* Sunucu oluştur/katıl modal */}
       {sunucuOlusturModal && (
         <div className={s.modal} onClick={() => setSunucuOlusturModal(false)}>
           <div className={s.modalCard} onClick={e => e.stopPropagation()}>
-            <h2 className={s.modalBaslik}>Sunucu Olustur veya Katil</h2>
+            <h2 className={s.modalBaslik}>Sunucu Oluştur veya Katıl</h2>
             <div className={s.modalSec}>
               <div className={s.modalBolum}>
-                <h3>Yeni Sunucu Olustur</h3>
-                <input className={s.modalInput} placeholder="Sunucu adi" value={yeniSunucuAd} onChange={e => setYeniSunucuAd(e.target.value)} onKeyDown={e => e.key === 'Enter' && sunucuOlustur()} />
-                <button className={s.modalBtn} onClick={sunucuOlustur}>Olustur</button>
+                <h3>Yeni Sunucu Oluştur</h3>
+                <input className={s.modalInput} placeholder="Sunucu adı" value={yeniSunucuAd} onChange={e => setYeniSunucuAd(e.target.value)} onKeyDown={e => e.key === 'Enter' && sunucuOlustur()} />
+                <button className={s.modalBtn} onClick={sunucuOlustur}>Oluştur</button>
               </div>
               <div className={s.modalAyrac} />
               <div className={s.modalBolum}>
-                <h3>Sunucuya Katil</h3>
-                <input className={s.modalInput} placeholder="Davet kodu" value={davetKod} onChange={e => setDavetKod(e.target.value)} onKeyDown={e => e.key === 'Enter' && davetleKatil()} />
-                <button className={s.modalBtn} onClick={davetleKatil}>Katil</button>
+                <h3>Sunucuya Katıl</h3>
+                <input className={s.modalInput} placeholder="Davet kodu veya link" value={davetKod} onChange={e => setDavetKod(e.target.value)} onKeyDown={e => e.key === 'Enter' && davetleKatil()} />
+                <button className={s.modalBtn} onClick={davetleKatil}>Katıl</button>
               </div>
             </div>
-            <button className={s.modalKapat} onClick={() => setSunucuOlusturModal(false)}>Iptal</button>
+            <button className={s.modalKapat} onClick={() => setSunucuOlusturModal(false)}>İptal</button>
           </div>
         </div>
       )}
 
+      {/* Kanal oluştur modal */}
       {kanalModal && (
         <div className={s.modal} onClick={() => setKanalModal(false)}>
           <div className={s.modalCard} onClick={e => e.stopPropagation()}>
-            <h2 className={s.modalBaslik}>Kanal Olustur</h2>
+            <h2 className={s.modalBaslik}>Kanal Oluştur</h2>
             <div className={s.field}>
               <label className={s.label}>KANAL ADI</label>
-              <input className={s.modalInput} placeholder="kanal-adi" value={yeniKanalAd} onChange={e => setYeniKanalAd(e.target.value)} />
+              <input className={s.modalInput} placeholder="kanal-adı" value={yeniKanalAd} onChange={e => setYeniKanalAd(e.target.value)} />
             </div>
             <div className={s.field}>
-              <label className={s.label}>KATEGORI</label>
+              <label className={s.label}>KATEGORİ</label>
               <input className={s.modalInput} placeholder="Genel" value={yeniKanalKat} onChange={e => setYeniKanalKat(e.target.value)} />
             </div>
             <div className={s.field}>
-              <label className={s.label}>TIP</label>
+              <label className={s.label}>TİP</label>
               <select className={s.modalInput} value={yeniKanalTip} onChange={e => setYeniKanalTip(e.target.value as any)}>
-                <option value="yazi">Yazi</option>
-                <option value="ses">Ses</option>
-                <option value="video">Video</option>
+                <option value="yazi">📝 Yazı</option>
+                <option value="ses">🔊 Ses</option>
+                <option value="video">📹 Video</option>
               </select>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button className={s.modalBtn} onClick={kanalOlustur}>Olustur</button>
-              <button className={s.modalKapat} onClick={() => setKanalModal(false)}>Iptal</button>
+              <button className={s.modalBtn} onClick={kanalOlustur}>Oluştur</button>
+              <button className={s.modalKapat} onClick={() => setKanalModal(false)}>İptal</button>
             </div>
           </div>
         </div>

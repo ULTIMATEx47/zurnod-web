@@ -27,6 +27,11 @@ export default function DMPage() {
   const [arkDmYukleniyor, setArkDmYukleniyor] = useState(false);
   const altRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const currentDmId = useRef<string | undefined>(dmId);
+
+  useEffect(() => {
+    currentDmId.current = dmId;
+  }, [dmId]);
 
   useEffect(() => {
     dispatch(dmleriGetirThunk());
@@ -38,25 +43,34 @@ export default function DMPage() {
       if (dm) {
         dispatch(setSecilenDM(dm));
         dispatch(dmMesajlariGetirThunk(dmId));
-        const socket = socketAl();
-        if (socket) socket.emit('dm_oda_katil', dmId);
+      } else if (dmler.length > 0) {
+        // DM listede yok, yenile
+        dispatch(dmleriGetirThunk());
       }
     } else {
       dispatch(setSecilenDM(null));
     }
   }, [dmId, dmler.length]);
 
+  // Socket listener - backend yeni_dm_mesaji emitiyor
   useEffect(() => {
     const socket = socketAl();
     if (!socket) return;
     const handler = (data: any) => {
       const mesaj = data.mesaj || data;
-      if (mesaj.dm === dmId) dispatch(dmMesajEkle(mesaj));
-      if (data.dm) dispatch(dmGuncelleRedux(data.dm));
+      const mesajDmId = mesaj.dm || data.dmId;
+      if (mesajDmId === currentDmId.current) {
+        dispatch(dmMesajEkle(mesaj));
+      }
+      dispatch(dmleriGetirThunk()); // DM listesini güncelle
     };
-    socket.on('yeni_dm_mesaj', handler);
-    return () => { socket.off('yeni_dm_mesaj', handler); };
-  }, [dmId]);
+    socket.on('yeni_dm_mesaji', handler);
+    socket.on('yeni_dm_mesaj', handler); // fallback
+    return () => {
+      socket.off('yeni_dm_mesaji', handler);
+      socket.off('yeni_dm_mesaj', handler);
+    };
+  }, []);
 
   useEffect(() => {
     altRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -116,37 +130,48 @@ export default function DMPage() {
         dispatch(dmGuncelleRedux(dm));
         navigate(`/dm/${dm._id}`);
         setArkadas('');
+      } else {
+        alert('Kullanıcı bulunamadı');
       }
     } catch (err) { console.error(err); }
     finally { setArkDmYukleniyor(false); }
   };
 
-  const durum = (kisi: any) => {
-    if (!kisi) return 'offline';
-    if (cevrimiciKullanicilar.includes(kisi._id || kisi.id)) return 'online';
-    return 'offline';
+  const isOnline = (kisi: any) => {
+    if (!kisi) return false;
+    return cevrimiciKullanicilar.includes(kisi._id || kisi.id);
+  };
+
+  const renderDmIcerik = (dm: any) => {
+    if (!dm.sonMesaj) return '';
+    const ic = dm.sonMesaj.icerik || '';
+    if (ic.startsWith('http') && ic.match(/\.(jpg|jpeg|png|gif|webp|mp4)/i)) return '📷 Medya';
+    if (ic.length > 35) return ic.substring(0, 35) + '...';
+    return ic;
   };
 
   return (
     <div className={s.container}>
+      {/* Sol Panel - DM listesi */}
       <div className={s.panel}>
         <div className={s.panelHeader}>
           <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>Mesajlar</span>
         </div>
+        {/* Yeni DM aç */}
         <div className={s.newDm}>
           <input
             className={s.newDmInput}
-            placeholder="Kullanici adi ara..."
+            placeholder="Kullanıcı adı ara..."
             value={arkadas}
             onChange={e => setArkadas(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && dmAc()}
           />
-          <button className={s.newDmBtn} onClick={dmAc} disabled={arkDmYukleniyor}>+</button>
+          <button className={s.newDmBtn} onClick={dmAc} disabled={arkDmYukleniyor} title="Mesaj Başlat">+</button>
         </div>
         <div className={s.dmList}>
           {dmler.map(dm => {
             const diger = dm.katilimcilar?.find(k => k._id !== kullanici?.id && k.id !== kullanici?.id);
-            const aktif = durum(diger) === 'online';
+            const aktif = isOnline(diger);
             return (
               <button
                 key={dm._id}
@@ -163,9 +188,7 @@ export default function DMPage() {
                 <div className={s.dmInfo}>
                   <span className={s.dmAd}>{diger?.goruntulenenAd || diger?.kullaniciAdi || 'Bilinmeyen'}</span>
                   {dm.sonMesaj && (
-                    <span className={s.dmSon}>
-                      {dm.sonMesaj.icerik?.substring(0, 30) || 'Medya'}
-                    </span>
+                    <span className={s.dmSon}>{renderDmIcerik(dm)}</span>
                   )}
                 </div>
               </button>
@@ -174,22 +197,25 @@ export default function DMPage() {
         </div>
       </div>
 
+      {/* Sohbet Alanı */}
       {secilenDM && karsiKisi ? (
         <div className={s.chat}>
+          {/* Başlık */}
           <div className={s.chatHeader}>
             <button className={s.avatarBtn} onClick={() => setProfilKisi(karsiKisi)}>
               {karsiKisi.avatar
                 ? <img src={karsiKisi.avatar} alt="" className={s.headerAvatar} />
                 : <span className={s.headerAvatarPlaceholder}>{(karsiKisi.goruntulenenAd || karsiKisi.kullaniciAdi || '?')[0].toUpperCase()}</span>
               }
-              <span className={`${s.statusDot2} ${durum(karsiKisi) === 'online' ? s.dotOnline : s.dotOffline}`} />
+              <span className={`${s.statusDot2} ${isOnline(karsiKisi) ? s.dotOnline : s.dotOffline}`} />
             </button>
             <div>
               <div className={s.headerAd}>{karsiKisi.goruntulenenAd || karsiKisi.kullaniciAdi}</div>
-              <div className={s.headerDurum}>{durum(karsiKisi) === 'online' ? 'Cevrimici' : 'Cevrimdisi'}</div>
+              <div className={s.headerDurum}>{isOnline(karsiKisi) ? '🟢 Çevrimiçi' : '⚫ Çevrimdışı'}</div>
             </div>
           </div>
 
+          {/* Mesajlar */}
           <div className={s.messages}>
             {mesajlar.map((mesaj, i) => (
               <MesajItem
@@ -207,38 +233,41 @@ export default function DMPage() {
             <div ref={altRef} />
           </div>
 
+          {/* Yanıt */}
           {cevapVerilen && (
             <div className={s.cevapBar}>
-              <span>Yanitlaniyor: <b>{cevapVerilen.yazar?.goruntulenenAd}</b>: {cevapVerilen.icerik?.substring(0, 60)}</span>
-              <button onClick={() => setCevapVerilen(null)} className={s.cevapKapat}>x</button>
+              <span>↩️ <b>{cevapVerilen.yazar?.goruntulenenAd}</b>: {cevapVerilen.icerik?.substring(0, 60)}</span>
+              <button onClick={() => setCevapVerilen(null)} className={s.cevapKapat}>✕</button>
             </div>
           )}
 
+          {/* Düzenleme */}
           {duzenlemeModu && (
             <div className={s.cevapBar}>
-              <span>Mesaj duzenleniyor</span>
-              <button onClick={() => { setDuzenlemeModu(null); setMetin(''); }} className={s.cevapKapat}>x</button>
+              <span>✏️ Mesaj düzenleniyor</span>
+              <button onClick={() => { setDuzenlemeModu(null); setMetin(''); }} className={s.cevapKapat}>✕</button>
             </div>
           )}
 
+          {/* Input */}
           <div className={s.inputArea}>
-            <button className={s.mediaBtn} onClick={gorselSec} disabled={yukleniyor} title="Medya">??</button>
+            <button className={s.mediaBtn} onClick={gorselSec} disabled={yukleniyor} title="Medya gönder">📎</button>
             <input
               ref={inputRef}
               className={s.input}
-              placeholder={`@${karsiKisi.kullaniciAdi} kisisine mesaj gonder`}
+              placeholder={`@${karsiKisi.kullaniciAdi || karsiKisi.goruntulenenAd}'a mesaj gönder`}
               value={metin}
               onChange={e => setMetin(e.target.value)}
               onKeyDown={handleKeyDown}
             />
-            <button className={s.sendBtn} onClick={gonder} disabled={!metin.trim()}>?</button>
+            <button className={s.sendBtn} onClick={gonder} disabled={!metin.trim()}>➤</button>
           </div>
         </div>
       ) : (
         <div className={s.bos}>
-          <span style={{ fontSize: 64 }}>??</span>
-          <h2 style={{ color: 'var(--text-primary)', marginTop: 16 }}>Mesajlarini sec</h2>
-          <p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Bir konusma sec veya yeni bir tane baslat</p>
+          <span style={{ fontSize: 64 }}>💬</span>
+          <h2 style={{ color: 'var(--text-primary)', marginTop: 16 }}>Mesajlarını seç</h2>
+          <p style={{ color: 'var(--text-muted)', marginTop: 8 }}>Bir konuşma seç veya yeni bir tane başlat</p>
         </div>
       )}
 

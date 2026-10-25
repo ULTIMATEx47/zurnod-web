@@ -4,6 +4,19 @@ import { RootState } from '../store';
 import * as api from '../utils/api';
 import s from './DurumPage.module.css';
 
+function formatTarih(tarih: string | undefined) {
+  if (!tarih) return '';
+  const d = new Date(tarih);
+  if (isNaN(d.getTime())) return '';
+  const simdi = new Date();
+  const fark = simdi.getTime() - d.getTime();
+  if (fark < 60000) return 'Az önce';
+  if (fark < 3600000) return `${Math.floor(fark / 60000)} dk önce`;
+  if (d.toDateString() === simdi.toDateString())
+    return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+}
+
 export default function DurumPage() {
   const kullanici = useSelector((s: RootState) => s.app.kullanici);
   const [durumlar, setDurumlar] = useState<any[]>([]);
@@ -19,7 +32,7 @@ export default function DurumPage() {
   const fetchDurumlar = async () => {
     try {
       const d = await api.durumlariGetir();
-      setDurumlar(d || []);
+      setDurumlar(Array.isArray(d) ? d : []);
     } catch {}
   };
 
@@ -57,15 +70,24 @@ export default function DurumPage() {
   const goruluyorAc = async (durum: any) => {
     try {
       const liste = await api.istek('GET', `/api/durumlar/${durum._id}/gorenler`);
-      setGoruluyorListesi(liste || []);
+      setGoruluyorListesi(Array.isArray(liste) ? liste : []);
       setGoruluyorModal(durum);
     } catch {}
   };
 
   const durumSil = async (id: string) => {
-    await api.durumSil(id);
-    fetchDurumlar();
-    setSeciliDurum(null);
+    try {
+      await api.durumSil(id);
+      fetchDurumlar();
+      setSeciliDurum(null);
+    } catch {}
+  };
+
+  const durumGor = async (durum: any) => {
+    try {
+      await api.durumGor(durum._id);
+    } catch {}
+    setSeciliDurum(durum);
   };
 
   // Durumları kişiye göre grupla
@@ -77,6 +99,18 @@ export default function DurumPage() {
   });
 
   const RENKLER = ['#E8621A', '#F5A623', '#43B581', '#5865F2', '#ED4245', '#FAA61A', '#1ABC9C', '#9B59B6'];
+
+  const renderDurumIcerik = (d: any) => {
+    if (!d) return null;
+    const tip = d.tip || d.gercekTip || 'metin';
+    if (tip === 'gorsel' || (d.icerik?.match && d.icerik.match(/\.(jpg|jpeg|png|gif|webp)/i))) {
+      return <img src={d.icerik} alt="durum" className={s.durumGorsel} />;
+    }
+    if (tip === 'video' || (d.icerik?.match && d.icerik.match(/\.(mp4|webm|mov)/i))) {
+      return <video src={d.icerik} controls className={s.durumVideo} />;
+    }
+    return <p className={s.durumMetin}>{d.icerik}</p>;
+  };
 
   return (
     <div className={s.container}>
@@ -109,15 +143,15 @@ export default function DurumPage() {
           </div>
         </div>
 
-        {/* Durum listesi (avatar çemberleri) */}
+        {/* Durum listesi */}
         <div className={s.durumCemberleri}>
           {Object.entries(gruplar).map(([sahipId, durumGrubu]) => {
             const ilkDurum = durumGrubu[0];
-            const kisi = ilkDurum.kullanici;
+            const kisi = ilkDurum?.kullanici;
             const benimMi = sahipId === kullanici?.id || sahipId === kullanici?._id;
             return (
               <button key={sahipId} className={`${s.durumCember} ${benimMi ? s.benimDurum : ''}`}
-                onClick={() => setSeciliDurum(durumGrubu)}>
+                onClick={() => durumGor(ilkDurum)}>
                 <div className={s.cemberAvatar} style={{ borderColor: benimMi ? '#E8621A' : '#F5A623' }}>
                   {kisi?.avatar
                     ? <img src={kisi.avatar} alt="" className={s.cemberImg} />
@@ -128,34 +162,43 @@ export default function DurumPage() {
               </button>
             );
           })}
+          {durumlar.length === 0 && (
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, padding: '16px 8px' }}>
+              Henüz durum paylaşılmamış
+            </p>
+          )}
         </div>
       </div>
 
       {/* Sağ: seçili durumu göster */}
-      {seciliDurum && Array.isArray(seciliDurum) ? (
+      {seciliDurum ? (
         <div className={s.durumGoruntule}>
-          {seciliDurum.map((d: any, i: number) => {
-            const benimMi = d.kullanici?._id === kullanici?.id;
-            return (
-              <div key={d._id} className={s.durumKart}
-                style={d.tip === 'metin' ? { background: d.arkaplanRenk || '#E8621A' } : {}}>
-                {d.tip === 'gorsel' && <img src={d.icerik} alt="" className={s.durumGorsel} />}
-                {d.tip === 'video' && <video src={d.icerik} controls className={s.durumVideo} />}
-                {d.tip === 'metin' && <p className={s.durumMetin}>{d.icerik}</p>}
-                <div className={s.durumMeta}>
-                  <span className={s.durumTarih}>{new Date(d.olusturulmaTarihi).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
-                  {benimMi && (
-                    <>
-                      <button className={s.goruluyorBtn} onClick={() => goruluyorAc(d)}>
-                        👁️ {d.gorenler?.length || 0}
-                      </button>
-                      <button className={s.silBtn} onClick={() => durumSil(d._id)}>🗑️</button>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          <div
+            className={s.durumKart}
+            style={seciliDurum.tip === 'metin' ? { background: seciliDurum.arkaplanRenk || '#E8621A' } : {}}
+          >
+            {renderDurumIcerik(seciliDurum)}
+            <div className={s.durumMeta}>
+              <span className={s.durumSahibi}>
+                {seciliDurum.kullanici?.goruntulenenAd || 'Bilinmeyen'}
+              </span>
+              <span className={s.durumTarih}>
+                {formatTarih(seciliDurum.olusturulmaTarihi || seciliDurum.createdAt)}
+              </span>
+              {(seciliDurum.kullanici?._id === kullanici?.id || seciliDurum.kullanici?.id === kullanici?.id) && (
+                <>
+                  <button className={s.goruluyorBtn} onClick={() => goruluyorAc(seciliDurum)}>
+                    👁️ {seciliDurum.gorenler?.length || 0}
+                  </button>
+                  <button className={s.silBtn} onClick={() => durumSil(seciliDurum._id)}>🗑️</button>
+                </>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={() => setSeciliDurum(null)}
+            style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(0,0,0,0.4)', border: 'none', color: 'white', borderRadius: '50%', width: 32, height: 32, fontSize: 16, cursor: 'pointer' }}
+          >✕</button>
         </div>
       ) : (
         <div className={s.bos}>
@@ -172,9 +215,15 @@ export default function DurumPage() {
               <h3 style={{ color: 'var(--text-primary)' }}>Görenler ({goruluyorListesi.length})</h3>
               <button onClick={() => setGoruluyorModal(null)} style={{ background: 'none', color: 'var(--text-muted)', fontSize: 18 }}>✕</button>
             </div>
+            {goruluyorListesi.length === 0 && (
+              <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Henüz kimse görmemiş</p>
+            )}
             {goruluyorListesi.map((k: any) => (
               <div key={k._id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--divider)' }}>
-                {k.avatar ? <img src={k.avatar} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} alt="" /> : <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'var(--text-primary)' }}>{(k.goruntulenenAd || '?')[0]}</div>}
+                {k.avatar
+                  ? <img src={k.avatar} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} alt="" />
+                  : <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{(k.goruntulenenAd || '?')[0]}</div>
+                }
                 <span style={{ color: 'var(--text-primary)', fontSize: 14 }}>{k.goruntulenenAd}</span>
               </div>
             ))}

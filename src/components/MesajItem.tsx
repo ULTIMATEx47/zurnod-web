@@ -16,13 +16,22 @@ interface Props {
 }
 
 function formatTarih(tarih: string) {
+  if (!tarih) return '';
   const d = new Date(tarih);
+  if (isNaN(d.getTime())) return '';
   const simdi = new Date();
   const fark = simdi.getTime() - d.getTime();
   if (fark < 60000) return 'az önce';
   if (fark < 3600000) return `${Math.floor(fark / 60000)} dk önce`;
   if (d.toDateString() === simdi.toDateString()) return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
   return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+function isSunucuDavet(icerik: string): boolean {
+  if (!icerik) return false;
+  // Backend davet linki formatı kontrol et
+  return icerik.includes('/sunucu/davet/') || icerik.includes('/davet/') || 
+         (icerik.length > 200 && !icerik.startsWith('http'));
 }
 
 export default function MesajItem({ mesaj, benimMi, onceki, onProfil, onCevapla, onDuzenle, onSil, cevapVerilen }: Props) {
@@ -41,23 +50,59 @@ export default function MesajItem({ mesaj, benimMi, onceki, onProfil, onCevapla,
   };
 
   const renderIcerik = () => {
-    if (mesaj.tip === 'gorsel' || (mesaj.icerik?.match(/\.(jpg|jpeg|png|gif|webp)/i) && mesaj.tip !== 'metin')) {
-      return <img src={mesaj.icerik} alt="gorsel" className={s.gorsel} onClick={() => window.open(mesaj.icerik, '_blank')} />;
+    const icerik = mesaj.icerik || '';
+    const tip = mesaj.tip || 'metin';
+
+    // Sunucu davet linki - garbled text sorunu için
+    if (tip === 'davet' || isSunucuDavet(icerik)) {
+      const kod = icerik.split('/').pop() || icerik;
+      return (
+        <div className={s.davetKart}>
+          <div className={s.davetIkon}>🌐</div>
+          <div className={s.davetBilgi}>
+            <span className={s.davetBaslik}>Sunucu Daveti</span>
+            <button
+              className={s.davetBtn}
+              onClick={async () => {
+                try {
+                  await api.sunucuDavetLinkiKatil(kod);
+                  alert("Sunucuya katıldınız!");
+                  window.location.href = '/sunucular';
+                } catch (e: any) { alert(e.message || 'Katılınamadı'); }
+              }}
+            >Sunucuya Katıl</button>
+          </div>
+        </div>
+      );
     }
-    if (mesaj.tip === 'video' || mesaj.icerik?.match(/\.(mp4|webm|mov)/i)) {
-      return <video src={mesaj.icerik} controls className={s.video} />;
+
+    if (tip === 'gorsel' || (icerik.match && icerik.match(/\.(jpg|jpeg|png|gif|webp)/i) && icerik.startsWith('http'))) {
+      return <img src={icerik} alt="görsel" className={s.gorsel} onClick={() => window.open(icerik, '_blank')} />;
     }
-    if (mesaj.tip === 'ses' || mesaj.icerik?.match(/\.(mp3|ogg|wav|m4a)/i)) {
-      return <audio src={mesaj.icerik} controls className={s.audio} />;
+    if (tip === 'video' || (icerik.match && icerik.match(/\.(mp4|webm|mov)/i))) {
+      return <video src={icerik} controls className={s.video} />;
     }
-    if (mesaj.tip === 'gif') {
-      return <img src={mesaj.icerik} alt="gif" className={s.gorsel} />;
+    if (tip === 'ses' || (icerik.match && icerik.match(/\.(mp3|ogg|wav|m4a)/i))) {
+      return <audio src={icerik} controls className={s.audio} />;
     }
-    if (mesaj.tip === 'dosya') {
-      const ad = mesaj.icerik.split('/').pop() || 'dosya';
-      return <a href={mesaj.icerik} target="_blank" rel="noreferrer" className={s.dosya}>📎 {ad}</a>;
+    if (tip === 'gif') {
+      return <img src={icerik} alt="gif" className={s.gorsel} />;
     }
-    return <span className={s.metin}>{mesaj.icerik}</span>;
+    if (tip === 'dosya') {
+      const ad = icerik.split('/').pop() || 'dosya';
+      return <a href={icerik} target="_blank" rel="noreferrer" className={s.dosya}>📎 {ad}</a>;
+    }
+
+    // Normal metin - URL varsa link yap
+    if (icerik.startsWith('http')) {
+      return (
+        <a href={icerik} target="_blank" rel="noreferrer" className={s.link}>
+          {icerik.length > 60 ? icerik.substring(0, 60) + '...' : icerik}
+        </a>
+      );
+    }
+
+    return <span className={s.metin}>{icerik}</span>;
   };
 
   const benimMesajMi = mesaj.yazar?._id === kullanici?.id || mesaj.yazar?.id === kullanici?.id;
@@ -78,7 +123,7 @@ export default function MesajItem({ mesaj, benimMi, onceki, onProfil, onCevapla,
       )}
 
       <div className={`${s.mesajRow} ${benimMi ? s.mesajRowBenim : ''}`}>
-        {/* Avatar (karşıdan gelenler için) */}
+        {/* Avatar */}
         {!benimMi && !ayniGonderici && (
           <button className={s.avatar} onClick={onProfil}>
             {mesaj.yazar?.avatar
