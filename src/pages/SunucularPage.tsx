@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch, sunuculariGetirThunk, kanallariGetirThunk, mesajlariGetirThunk, setSecilenSunucu, setSecilenKanal, mesajEkle, mesajGuncelle, mesajSilRedux } from '../store';
 import * as api from '../utils/api';
-import { socketAl } from '../utils/api';
+import { socketAl, socketBaglan } from '../utils/api';
 import s from './SunucularPage.module.css';
 import MesajItem from '../components/MesajItem';
 import ProfilModal from '../components/ProfilModal';
@@ -43,13 +43,25 @@ export default function SunucularPage() {
       const sunucu = sunucular.find(s => s._id === sunucuId);
       if (sunucu) {
         dispatch(setSecilenSunucu(sunucu));
-        dispatch(kanallariGetirThunk(sunucuId));
-        // Sunucu odasına katıl
-        const socket = socketAl();
-        if (socket) socket.emit('sunucuya_katil', sunucuId);
       }
+      // Her zaman kanalları getir (backend sunucu detayı da döndürür)
+      dispatch(kanallariGetirThunk(sunucuId));
     }
   }, [sunucuId, sunucular.length]);
+
+  // Sunucu socket odasına katıl
+  useEffect(() => {
+    if (!sunucuId) return;
+    const tryJoin = () => {
+      const socket = socketAl();
+      if (socket?.connected) {
+        socket.emit('sunucuya_katil', sunucuId);
+      } else {
+        setTimeout(tryJoin, 500);
+      }
+    };
+    tryJoin();
+  }, [sunucuId]);
 
   useEffect(() => {
     if (kanalId) {
@@ -58,15 +70,26 @@ export default function SunucularPage() {
         dispatch(setSecilenKanal(kanal));
         if (kanal.tip === 'yazi') {
           dispatch(mesajlariGetirThunk(kanalId));
-          // Kanal odasına katıl
-          const socket = socketAl();
-          if (socket) socket.emit('kanala_katil', kanalId);
         }
       }
     }
   }, [kanalId, kanallar.length]);
 
-  // Socket listener - kanal mesajları
+  // Kanal odasına katıl - socket hazır olunca
+  useEffect(() => {
+    if (!kanalId) return;
+    const tryJoin = () => {
+      const socket = socketAl();
+      if (socket?.connected) {
+        socket.emit('kanala_katil', kanalId);
+      } else {
+        setTimeout(tryJoin, 500);
+      }
+    };
+    tryJoin();
+  }, [kanalId]);
+
+  // Socket mesaj dinleyicileri
   useEffect(() => {
     const socket = socketAl();
     if (!socket) return;
@@ -79,35 +102,48 @@ export default function SunucularPage() {
       dispatch(mesajGuncelle(mesaj));
     };
     const silHandler = (data: any) => {
-      const id = typeof data === 'string' ? data : (data.mesajId || data._id);
-      dispatch(mesajSilRedux(id));
+      const id = typeof data === 'string' ? data : (data.mesajId || data._id || data);
+      if (id) dispatch(mesajSilRedux(id));
     };
 
     socket.on('yeni_mesaj', yeniMesajHandler);
     socket.on('mesaj_duzenlendi', duzenleHandler);
+    socket.on('mesaj_guncellendi', duzenleHandler);
     socket.on('mesaj_silindi', silHandler);
 
     return () => {
       socket.off('yeni_mesaj', yeniMesajHandler);
       socket.off('mesaj_duzenlendi', duzenleHandler);
+      socket.off('mesaj_guncellendi', duzenleHandler);
       socket.off('mesaj_silindi', silHandler);
     };
   }, []);
 
   useEffect(() => { altRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [mesajlar]);
 
-  const gonder = () => {
-    if (!metin.trim() || !kanalId) return;
-    const icerik = metin.trim();
+  const gonder = useCallback(() => {
+    const trimmed = metin.trim();
+    if (!trimmed || !kanalId) return;
     setMetin('');
+
     if (duzenlemeModu) {
-      api.socketMesajDuzenle(duzenlemeModu.id, icerik);
+      api.socketMesajDuzenle(duzenlemeModu.id, trimmed);
       setDuzenlemeModu(null);
     } else {
-      api.socketMesajGonder(kanalId, icerik, 'metin', cevapVerilen?._id);
+      // Socket bağlantısını garantile
+      const token = localStorage.getItem('token');
+      if (token) {
+        const socket = socketAl();
+        if (!socket?.connected && token) {
+          socketBaglan(token);
+          setTimeout(() => api.socketMesajGonder(kanalId, trimmed, 'metin', cevapVerilen?._id), 500);
+        } else {
+          api.socketMesajGonder(kanalId, trimmed, 'metin', cevapVerilen?._id);
+        }
+      }
       setCevapVerilen(null);
     }
-  };
+  }, [metin, kanalId, duzenlemeModu, cevapVerilen]);
 
   const gorselSec = async () => {
     if (!kanalId) return;
@@ -115,14 +151,16 @@ export default function SunucularPage() {
     input.type = 'file'; input.accept = 'image/*,video/*';
     input.onchange = async (e: any) => {
       const file = e.target.files[0]; if (!file) return;
-      const reader = new FileReader();
-      reader.onload = async (ev) => {
-        const base64 = ev.target?.result as string;
-        const url = await api.gorselYukle(base64);
-        const tip = file.type.startsWith('video') ? 'video' : 'gorsel';
-        api.socketMesajGonder(kanalId, url, tip);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+          const base64 = ev.target?.result as string;
+          const url = await api.gorselYukle(base64);
+          const tip = file.type.startsWith('video') ? 'video' : 'gorsel';
+          api.socketMesajGonder(kanalId, url, tip);
+        };
+        reader.readAsDataURL(file);
+      } catch (err) { console.error(err); }
     };
     input.click();
   };
@@ -132,24 +170,19 @@ export default function SunucularPage() {
     try {
       await api.sunucuOlustur(yeniSunucuAd);
       dispatch(sunuculariGetirThunk());
-      setSunucuOlusturModal(false);
-      setYeniSunucuAd('');
+      setSunucuOlusturModal(false); setYeniSunucuAd('');
     } catch (err) { console.error(err); }
   };
 
   const davetleKatil = async () => {
     if (!davetKod.trim()) return;
     try {
-      // Davet linki tam URL olabilir, sadece kodu al
       let kod = davetKod.trim();
       if (kod.includes('/')) kod = kod.split('/').pop() || kod;
       await api.sunucuDavetLinkiKatil(kod);
       dispatch(sunuculariGetirThunk());
-      setDavetKod('');
-      setSunucuOlusturModal(false);
-    } catch (err: any) {
-      alert(err.message || 'Sunucuya katılınamadı');
-    }
+      setDavetKod(''); setSunucuOlusturModal(false);
+    } catch (err: any) { alert(err.message || 'Sunucuya katılınamadı'); }
   };
 
   const kanalOlustur = async () => {
@@ -157,8 +190,7 @@ export default function SunucularPage() {
     try {
       await api.kanalOlustur(sunucuId, yeniKanalAd, yeniKanalTip, yeniKanalKat);
       dispatch(kanallariGetirThunk(sunucuId));
-      setKanalModal(false);
-      setYeniKanalAd('');
+      setKanalModal(false); setYeniKanalAd('');
     } catch (err) { console.error(err); }
   };
 
@@ -172,6 +204,15 @@ export default function SunucularPage() {
   });
 
   const isSahip = secilenSunucu?.sahip === kullanici?.id || secilenSunucu?.sahip === kullanici?._id;
+
+  // Üye listesi - kullanici populate edilmiş olabilir veya olmayabilir
+  const uyeListesi = secilenSunucu?.uyeler?.map((uye: any) => {
+    if (uye && typeof uye === 'object') {
+      const k = uye.kullanici || uye;
+      if (k && typeof k === 'object' && k.kullaniciAdi) return k;
+    }
+    return null;
+  }).filter(Boolean) || [];
 
   return (
     <div className={s.container}>
@@ -237,6 +278,8 @@ export default function SunucularPage() {
             <span className={s.kanalIkon2}>{kanalIkonu(secilenKanal.tip)}</span>
             <span className={s.kanalBaslik}>{secilenKanal.ad}</span>
             {secilenKanal.konu && <span className={s.kanalKonu}>{secilenKanal.konu}</span>}
+            <div style={{ flex: 1 }} />
+            <button className={s.uyelerToggle} onClick={() => setUyelerPanel(p => !p)} title="Üyeler">👥</button>
           </div>
 
           {secilenKanal.tip === 'yazi' ? (
@@ -264,7 +307,6 @@ export default function SunucularPage() {
                   <button onClick={() => setCevapVerilen(null)} className={s.cevapKapat}>✕</button>
                 </div>
               )}
-
               {duzenlemeModu && (
                 <div className={s.cevapBar}>
                   <span>✏️ Mesaj düzenleniyor</span>
@@ -312,21 +354,24 @@ export default function SunucularPage() {
       {uyelerPanel && secilenSunucu && (
         <div className={s.uyelerPanel}>
           <div className={s.uyelerHeader}>
-            <span>Üyeler</span>
+            <span>Üyeler ({uyeListesi.length})</span>
             <button onClick={() => setUyelerPanel(false)} className={s.kapat}>✕</button>
           </div>
           <div className={s.uyelerList}>
-            {secilenSunucu.uyeler?.map((uye: any) => {
-              const k = uye.kullanici || uye;
-              return (
-                <button key={k._id} className={s.uyeItem} onClick={() => setProfilKisi(k)}>
-                  <div className={s.uyeAvatar}>
-                    {k.avatar ? <img src={k.avatar} alt="" className={s.uyeAvatarImg} /> : (k.goruntulenenAd || '?')[0]}
-                  </div>
-                  <span className={s.uyeAd}>{k.goruntulenenAd || k.kullaniciAdi}</span>
-                </button>
-              );
-            })}
+            {uyeListesi.length === 0 && (
+              <p style={{ padding: 12, color: 'var(--text-muted)', fontSize: 13 }}>Üye bilgisi yüklenemedi</p>
+            )}
+            {uyeListesi.map((k: any) => (
+              <button key={k._id} className={s.uyeItem} onClick={() => setProfilKisi(k)}>
+                <div className={s.uyeAvatar}>
+                  {k.avatar
+                    ? <img src={k.avatar} alt="" className={s.uyeAvatarImg} />
+                    : <span>{(k.goruntulenenAd || k.kullaniciAdi || '?')[0].toUpperCase()}</span>
+                  }
+                </div>
+                <span className={s.uyeAd}>{k.goruntulenenAd || k.kullaniciAdi}</span>
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -339,13 +384,15 @@ export default function SunucularPage() {
             <div className={s.modalSec}>
               <div className={s.modalBolum}>
                 <h3>Yeni Sunucu Oluştur</h3>
-                <input className={s.modalInput} placeholder="Sunucu adı" value={yeniSunucuAd} onChange={e => setYeniSunucuAd(e.target.value)} onKeyDown={e => e.key === 'Enter' && sunucuOlustur()} />
+                <input className={s.modalInput} placeholder="Sunucu adı" value={yeniSunucuAd}
+                  onChange={e => setYeniSunucuAd(e.target.value)} onKeyDown={e => e.key === 'Enter' && sunucuOlustur()} />
                 <button className={s.modalBtn} onClick={sunucuOlustur}>Oluştur</button>
               </div>
               <div className={s.modalAyrac} />
               <div className={s.modalBolum}>
                 <h3>Sunucuya Katıl</h3>
-                <input className={s.modalInput} placeholder="Davet kodu veya link" value={davetKod} onChange={e => setDavetKod(e.target.value)} onKeyDown={e => e.key === 'Enter' && davetleKatil()} />
+                <input className={s.modalInput} placeholder="Davet kodu veya link" value={davetKod}
+                  onChange={e => setDavetKod(e.target.value)} onKeyDown={e => e.key === 'Enter' && davetleKatil()} />
                 <button className={s.modalBtn} onClick={davetleKatil}>Katıl</button>
               </div>
             </div>

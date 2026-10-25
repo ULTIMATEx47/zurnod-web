@@ -269,7 +269,17 @@ const appSlice = createSlice({
         state.sunucular = action.payload;
       })
       .addCase(kanallariGetirThunk.fulfilled, (state, action) => {
-        state.kanallar = action.payload;
+        // Backend { sunucu, kanallar } veya doğrudan kanallar[] döndürüyor
+        const payload = action.payload;
+        if (Array.isArray(payload)) {
+          state.kanallar = payload;
+        } else if (payload && payload.kanallar) {
+          state.kanallar = payload.kanallar;
+          // Sunucu uyelerini de güncelle
+          if (payload.sunucu && state.secilenSunucu?._id === payload.sunucu._id) {
+            state.secilenSunucu = payload.sunucu;
+          }
+        }
       })
       .addCase(mesajlariGetirThunk.fulfilled, (state, action) => {
         state.mesajlar = action.payload;

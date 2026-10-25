@@ -19,10 +19,15 @@ export default function ProfilPage() {
   });
   const [premiumKod, setPremiumKod] = useState('');
   const [premiumMesaj, setPremiumMesaj] = useState('');
-  const [sifreDegistir, setSifreDegistir] = useState(false);
+  const [sifreDegistirAcik, setSifreDegistirAcik] = useState(false);
   const [sifreForm, setSifreForm] = useState({ mevcutSifre: '', yeniSifre: '' });
   const [yukleniyor, setYukleniyor] = useState(false);
   const [avatarYukleniyor, setAvatarYukleniyor] = useState(false);
+  const [premiumForm, setPremiumForm] = useState({
+    mesajBalonRengi: (kullanici as any)?.mesajBalonRengi || '',
+    okuduGizle: (kullanici as any)?.okuduGizle || false,
+    cevrimiciGizle: (kullanici as any)?.cevrimiciGizle || false,
+  });
 
   const kaydet = async () => {
     setYukleniyor(true);
@@ -45,11 +50,31 @@ export default function ProfilPage() {
         reader.onload = async (ev) => {
           const base64 = ev.target?.result as string;
           const url = await api.gorselYukle(base64);
-          const yanit = await api.profilGuncelle({ avatar: url });
+          await api.profilGuncelle({ avatar: url });
           dispatch(setKullanici({ ...kullanici!, avatar: url }));
         };
         reader.readAsDataURL(file);
       } catch {} finally { setAvatarYukleniyor(false); }
+    };
+    input.click();
+  };
+
+  const bannerDegistir = async () => {
+    if (!kullanici?.isPremium) { alert('Bu özellik sadece Premium kullanıcılara açık!'); return; }
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = 'image/*';
+    input.onchange = async (e: any) => {
+      const file = e.target.files[0]; if (!file) return;
+      try {
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+          const base64 = ev.target?.result as string;
+          const url = await api.gorselYukle(base64);
+          await api.profilGuncelle({ profilBanner: url });
+          dispatch(setKullanici({ ...kullanici!, ...(kullanici as any), profilBanner: url }));
+        };
+        reader.readAsDataURL(file);
+      } catch {}
     };
     input.click();
   };
@@ -67,11 +92,19 @@ export default function ProfilPage() {
     }
   };
 
+  const premiumAyarKaydet = async () => {
+    try {
+      const yanit = await api.profilGuncelle(premiumForm);
+      dispatch(setKullanici({ ...kullanici!, ...yanit }));
+      alert('Premium ayarlar kaydedildi!');
+    } catch (e: any) { alert(e.message || 'Kaydedilemedi'); }
+  };
+
   const sifreDegistirKaydet = async () => {
     if (!sifreForm.mevcutSifre || !sifreForm.yeniSifre) return;
     try {
       await api.sifreDegistir(sifreForm.mevcutSifre, sifreForm.yeniSifre);
-      setSifreDegistir(false);
+      setSifreDegistirAcik(false);
       setSifreForm({ mevcutSifre: '', yeniSifre: '' });
       alert('Şifre değiştirildi!');
     } catch (e: any) { alert(e.message || 'Şifre değiştirilemedi'); }
@@ -90,7 +123,13 @@ export default function ProfilPage() {
         {/* Profil kartı */}
         <div className={s.kart}>
           {/* Banner */}
-          <div className={s.bannerArea} style={{ background: (kullanici as any)?.profilBanner ? `url(${(kullanici as any).profilBanner}) center/cover` : 'linear-gradient(135deg,#C04E0D,#E8621A)' }}>
+          <div
+            className={s.bannerArea}
+            style={{ background: (kullanici as any)?.profilBanner ? `url(${(kullanici as any).profilBanner}) center/cover` : 'linear-gradient(135deg,#C04E0D,#E8621A)' }}
+            onClick={bannerDegistir}
+            title={kullanici?.isPremium ? 'Banner değiştir' : 'Premium gerekli'}
+          >
+            {kullanici?.isPremium && <div className={s.bannerOverlay}>📷 Banner Değiştir</div>}
           </div>
 
           {/* Avatar */}
@@ -144,15 +183,15 @@ export default function ProfilPage() {
           </div>
         </div>
 
-        {/* Şifre değiştir */}
+        {/* Güvenlik */}
         <div className={s.bolum}>
           <div className={s.bolumBaslik}>
-            <span>Güvenlik</span>
-            <button className={s.toggleBtn} onClick={() => setSifreDegistir(p => !p)}>
-              {sifreDegistir ? 'İptal' : 'Şifre Değiştir'}
+            <span>🔒 Güvenlik</span>
+            <button className={s.toggleBtn} onClick={() => setSifreDegistirAcik(p => !p)}>
+              {sifreDegistirAcik ? 'İptal' : 'Şifre Değiştir'}
             </button>
           </div>
-          {sifreDegistir && (
+          {sifreDegistirAcik && (
             <div className={s.formAlan}>
               <div className={s.field}><label className={s.label}>MEVCUT ŞİFRE</label>
                 <input type="password" className={s.input} value={sifreForm.mevcutSifre} onChange={e => setSifreForm(f => ({ ...f, mevcutSifre: e.target.value }))} /></div>
@@ -163,15 +202,88 @@ export default function ProfilPage() {
           )}
         </div>
 
-        {/* Premium */}
+        {/* Premium - Kod gir (premium değilse) */}
         {!kullanici?.isPremium && (
           <div className={s.bolum}>
-            <div className={s.bolumBaslik}><span>🌟 Premium Kodu Kullan</span></div>
+            <div className={s.bolumBaslik}><span>🌟 Premium'a Geç</span></div>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+              Premium ile özel mesaj balonu rengi, profil banner, okundu gizleme ve daha fazlası!
+            </p>
             <div className={s.premiumRow}>
-              <input className={s.input} placeholder="Premium kod gir..." value={premiumKod} onChange={e => setPremiumKod(e.target.value)} onKeyDown={e => e.key === 'Enter' && premiumKodKullan()} />
+              <input className={s.input} placeholder="Premium kod gir..." value={premiumKod}
+                onChange={e => setPremiumKod(e.target.value)} onKeyDown={e => e.key === 'Enter' && premiumKodKullan()} />
               <button className={s.kaydetBtn} onClick={premiumKodKullan}>Aktifleştir</button>
             </div>
             {premiumMesaj && <p style={{ marginTop: 8, fontSize: 13, color: premiumMesaj.startsWith('✅') ? '#43B581' : '#F04747' }}>{premiumMesaj}</p>}
+          </div>
+        )}
+
+        {/* Premium Özellikler Paneli (premium ise) */}
+        {kullanici?.isPremium && (
+          <div className={s.bolum}>
+            <div className={s.bolumBaslik}><span>⭐ Premium Özellikler</span></div>
+
+            {/* Mesaj Balonu Rengi */}
+            <div className={s.field} style={{ marginBottom: 12 }}>
+              <label className={s.label}>MESAJ BALON RENGİ</label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
+                {['#E8621A','#5865F2','#57F287','#ED4245','#FEE75C','#EB459E','#1ABC9C','#9B59B6'].map(renk => (
+                  <button
+                    key={renk}
+                    onClick={() => setPremiumForm(f => ({ ...f, mesajBalonRengi: renk }))}
+                    style={{
+                      width: 28, height: 28, borderRadius: '50%', background: renk,
+                      border: premiumForm.mesajBalonRengi === renk ? '3px solid white' : '2px solid transparent',
+                      cursor: 'pointer'
+                    }}
+                  />
+                ))}
+                <input
+                  type="color"
+                  value={premiumForm.mesajBalonRengi || '#E8621A'}
+                  onChange={e => setPremiumForm(f => ({ ...f, mesajBalonRengi: e.target.value }))}
+                  style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0 }}
+                  title="Özel renk seç"
+                />
+              </div>
+            </div>
+
+            {/* Gizlilik ayarları */}
+            <div className={s.field} style={{ marginBottom: 12 }}>
+              <label className={s.label}>GİZLİLİK</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 14 }}>
+                <input
+                  type="checkbox"
+                  checked={premiumForm.okuduGizle}
+                  onChange={e => setPremiumForm(f => ({ ...f, okuduGizle: e.target.checked }))}
+                  style={{ width: 16, height: 16, accentColor: 'var(--primary)' }}
+                />
+                Okundu bilgisini gizle
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 14 }}>
+                <input
+                  type="checkbox"
+                  checked={premiumForm.cevrimiciGizle}
+                  onChange={e => setPremiumForm(f => ({ ...f, cevrimiciGizle: e.target.checked }))}
+                  style={{ width: 16, height: 16, accentColor: 'var(--primary)' }}
+                />
+                Çevrimiçi durumunu gizle
+              </label>
+            </div>
+
+            <button className={s.kaydetBtn} onClick={premiumAyarKaydet}>Premium Ayarları Kaydet</button>
+
+            {/* Banner */}
+            <div style={{ marginTop: 12 }}>
+              <label className={s.label}>PROFİL BANNER</label>
+              <button
+                className={s.toggleBtn}
+                onClick={bannerDegistir}
+                style={{ marginTop: 8, display: 'block' }}
+              >
+                📷 Banner Değiştir
+              </button>
+            </div>
           </div>
         )}
 
