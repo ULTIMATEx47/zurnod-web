@@ -269,14 +269,14 @@ const appSlice = createSlice({
         state.sunucular = action.payload;
       })
       .addCase(kanallariGetirThunk.fulfilled, (state, action) => {
-        // Backend { sunucu, kanallar } veya doğrudan kanallar[] döndürüyor
+        // Backend { sunucu, kanallar } veya dogrudan kanallar[] donduruyor
         const payload = action.payload;
         if (Array.isArray(payload)) {
           state.kanallar = payload;
         } else if (payload && payload.kanallar) {
           state.kanallar = payload.kanallar;
-          // Sunucu uyelerini de güncelle
-          if (payload.sunucu && state.secilenSunucu?._id === payload.sunucu._id) {
+          // Sunucu detayini (uyeler dahil) her zaman guncelle
+          if (payload.sunucu) {
             state.secilenSunucu = payload.sunucu;
           }
         }

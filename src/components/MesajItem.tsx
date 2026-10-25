@@ -106,7 +106,9 @@ export default function MesajItem({ mesaj, benimMi, onceki, onProfil, onCevapla,
   };
 
   const benimMesajMi = mesaj.yazar?._id === kullanici?.id || mesaj.yazar?.id === kullanici?.id;
-  const balon = mesaj.yazar?.mesajBalonRengi;
+  // Mesaj balonu rengi: kendi mesajimda da uygula
+  const balon = mesaj.yazar?.mesajBalonRengi || null;
+  const balonStyle = balon ? { background: balon, color: 'white' } : undefined;
 
   return (
     <div
@@ -135,7 +137,7 @@ export default function MesajItem({ mesaj, benimMi, onceki, onProfil, onCevapla,
         {!benimMi && ayniGonderici && <div style={{ width: 36, flexShrink: 0 }} />}
 
         <div className={`${s.bubble} ${benimMi ? s.bubbleBenim : s.bubbleKarsi}`}
-          style={balon && !benimMi ? { background: balon } : undefined}
+          style={balonStyle}
         >
           {/* İsim + Tarih */}
           {!ayniGonderici && (
