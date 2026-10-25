@@ -177,6 +177,7 @@ export const tumBildirimleriOku = async () => {
 
 // ==================== DURUM ====================
 export const durumlariGetir = async () => istek('GET', '/api/durumlar');
+export const dmSil = async (dmId: string) => istek('DELETE', `/api/dmler/${dmId}`);
 export const durumPaylas = async (tip: string, icerik: string, arkaplanRenk?: string, gercekTip?: string) =>
   istek('POST', '/api/durumlar', { tip, icerik, arkaplanRenk, gercekTip });
 export const durumSil = async (durumId: string) => istek('DELETE', `/api/durumlar/${durumId}`);

@@ -309,3 +309,60 @@
     display: none;
   }
 }
+
+/* DM item wrap + silme butonu */
+.dmItemWrap {
+  display: flex;
+  align-items: center;
+  position: relative;
+  margin: 1px 4px;
+}
+
+.dmItemWrap .dmItem {
+  flex: 1;
+  margin: 0;
+  width: auto;
+}
+
+.dmSilBtn {
+  background: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 6px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.dmItemWrap:hover .dmSilBtn { opacity: 1; }
+.dmSilBtn:hover { color: #F04747; background: var(--bg-quaternary); }
+
+.silOnayRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  flex-shrink: 0;
+}
+.silOnayText {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.silOnayEvet {
+  background: #F04747;
+  color: white;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.silOnayHayir {
+  background: var(--bg-quaternary);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}

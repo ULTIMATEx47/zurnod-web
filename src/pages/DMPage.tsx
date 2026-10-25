@@ -25,17 +25,13 @@ export default function DMPage() {
   const [cevapVerilen, setCevapVerilen] = useState<any>(null);
   const [arkadas, setArkadas] = useState('');
   const [arkDmYukleniyor, setArkDmYukleniyor] = useState(false);
+  const [silOnay, setSilOnay] = useState<string | null>(null); // dmId bekliyor
   const altRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const currentDmId = useRef<string | undefined>(dmId);
 
-  useEffect(() => {
-    currentDmId.current = dmId;
-  }, [dmId]);
-
-  useEffect(() => {
-    dispatch(dmleriGetirThunk());
-  }, []);
+  useEffect(() => { currentDmId.current = dmId; }, [dmId]);
+  useEffect(() => { dispatch(dmleriGetirThunk()); }, []);
 
   useEffect(() => {
     if (dmId) {
@@ -58,22 +54,15 @@ export default function DMPage() {
     const handler = (data: any) => {
       const mesaj = data.mesaj || data;
       const mesajDmId = mesaj.dm || data.dmId;
-      if (mesajDmId === currentDmId.current) {
-        dispatch(dmMesajEkle(mesaj));
-      }
+      if (mesajDmId === currentDmId.current) dispatch(dmMesajEkle(mesaj));
       dispatch(dmleriGetirThunk());
     };
     socket.on('yeni_dm_mesaji', handler);
     socket.on('yeni_dm_mesaj', handler);
-    return () => {
-      socket.off('yeni_dm_mesaji', handler);
-      socket.off('yeni_dm_mesaj', handler);
-    };
+    return () => { socket.off('yeni_dm_mesaji', handler); socket.off('yeni_dm_mesaj', handler); };
   }, []);
 
-  useEffect(() => {
-    altRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [mesajlar]);
+  useEffect(() => { altRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [mesajlar]);
 
   const karsiKisi = secilenDM?.katilimcilar?.find(k => k._id !== kullanici?.id && k.id !== kullanici?.id);
 
@@ -98,11 +87,9 @@ export default function DMPage() {
     if (!dmId) return;
     const localDmId = dmId;
     const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*,video/*';
+    input.type = 'file'; input.accept = 'image/*,video/*';
     input.onchange = (e: any) => {
-      const file = e.target.files[0];
-      if (!file) return;
+      const file = e.target.files[0]; if (!file) return;
       setYukleniyor(true);
       const reader = new FileReader();
       reader.onload = async (ev) => {
@@ -111,13 +98,10 @@ export default function DMPage() {
           const url = await api.gorselYukle(base64);
           const tip = file.type.startsWith('video') ? 'video' : 'gorsel';
           api.socketDmGonder(localDmId, url, tip);
-        } catch (err) {
-          console.error('Gorsel yuklenemedi:', err);
-        } finally {
-          setYukleniyor(false);
-        }
+        } catch (err) { console.error('Gorsel yuklenemedi:', err); }
+        finally { setYukleniyor(false); }
       };
-      reader.onerror = () => { setYukleniyor(false); };
+      reader.onerror = () => setYukleniyor(false);
       reader.readAsDataURL(file);
     };
     input.click();
@@ -134,11 +118,18 @@ export default function DMPage() {
         dispatch(dmGuncelleRedux(dm));
         navigate(`/dm/${dm._id}`);
         setArkadas('');
-      } else {
-        alert('Kullanici bulunamadi');
-      }
+      } else { alert('Kullanici bulunamadi'); }
     } catch (err) { console.error(err); }
     finally { setArkDmYukleniyor(false); }
+  };
+
+  const dmSilOnayla = async (id: string) => {
+    try {
+      await api.dmSil(id);
+      dispatch(dmleriGetirThunk());
+      if (dmId === id) navigate('/dm');
+    } catch (e: any) { alert('Silinemedi: ' + e.message); }
+    finally { setSilOnay(null); }
   };
 
   const isOnline = (kisi: any) => {
@@ -154,7 +145,6 @@ export default function DMPage() {
     return ic;
   };
 
-  // Mobil: dmId varsa panel gizli, chat gorulur
   const chatAcik = !!dmId;
 
   return (
@@ -178,26 +168,36 @@ export default function DMPage() {
           {dmler.map(dm => {
             const diger = dm.katilimcilar?.find(k => k._id !== kullanici?.id && k.id !== kullanici?.id);
             const aktif = isOnline(diger);
+            const gosterAd = diger?.goruntulenenAd || diger?.kullaniciAdi;
             return (
-              <button
-                key={dm._id}
-                className={`${s.dmItem} ${dmId === dm._id ? s.dmItemActive : ''}`}
-                onClick={() => navigate(`/dm/${dm._id}`)}
-              >
-                <div className={s.dmAvatar}>
-                  {diger?.avatar
-                    ? <img src={diger.avatar} alt="" className={s.avatarImg} />
-                    : <span>{(diger?.goruntulenenAd || diger?.kullaniciAdi || '?')[0].toUpperCase()}</span>
-                  }
-                  <span className={`${s.statusDot} ${aktif ? s.dotOnline : s.dotOffline}`} />
-                </div>
-                <div className={s.dmInfo}>
-                  <span className={s.dmAd}>{diger?.goruntulenenAd || diger?.kullaniciAdi || 'Bilinmeyen'}</span>
-                  {dm.sonMesaj && (
-                    <span className={s.dmSon}>{renderDmIcerik(dm)}</span>
-                  )}
-                </div>
-              </button>
+              <div key={dm._id} className={s.dmItemWrap}>
+                <button
+                  className={`${s.dmItem} ${dmId === dm._id ? s.dmItemActive : ''}`}
+                  onClick={() => navigate(`/dm/${dm._id}`)}
+                >
+                  <div className={s.dmAvatar}>
+                    {diger?.avatar
+                      ? <img src={diger.avatar} alt="" className={s.avatarImg} />
+                      : <span>{(gosterAd || '?')[0].toUpperCase()}</span>
+                    }
+                    <span className={`${s.statusDot} ${aktif ? s.dotOnline : s.dotOffline}`} />
+                  </div>
+                  <div className={s.dmInfo}>
+                    <span className={s.dmAd}>{gosterAd || 'Bilinmeyen'}</span>
+                    {dm.sonMesaj && <span className={s.dmSon}>{renderDmIcerik(dm)}</span>}
+                  </div>
+                </button>
+                {/* Silme butonu */}
+                {silOnay === dm._id ? (
+                  <div className={s.silOnayRow}>
+                    <span className={s.silOnayText}>Sil?</span>
+                    <button className={s.silOnayEvet} onClick={() => dmSilOnayla(dm._id)}>Evet</button>
+                    <button className={s.silOnayHayir} onClick={() => setSilOnay(null)}>Hayir</button>
+                  </div>
+                ) : (
+                  <button className={s.dmSilBtn} onClick={() => setSilOnay(dm._id)} title="DM'yi sil">🗑</button>
+                )}
+              </div>
             );
           })}
         </div>
@@ -231,7 +231,7 @@ export default function DMPage() {
                 onProfil={() => setProfilKisi(mesaj.yazar)}
                 onCevapla={() => setCevapVerilen(mesaj)}
                 onDuzenle={() => { setDuzenlemeModu({ id: mesaj._id, icerik: mesaj.icerik }); setMetin(mesaj.icerik); }}
-                onSil={() => { api.socketMesajSil(mesaj._id); }}
+                onSil={() => api.socketMesajSil(mesaj._id)}
                 cevapVerilen={mesaj.cevapVerilen}
               />
             ))}
@@ -244,7 +244,6 @@ export default function DMPage() {
               <button onClick={() => setCevapVerilen(null)} className={s.cevapKapat}>x</button>
             </div>
           )}
-
           {duzenlemeModu && (
             <div className={s.cevapBar}>
               <span>Mesaj duzenleniyor</span>
@@ -275,9 +274,7 @@ export default function DMPage() {
         </div>
       )}
 
-      {profilKisi && (
-        <ProfilModal kisi={profilKisi} onKapat={() => setProfilKisi(null)} />
-      )}
+      {profilKisi && <ProfilModal kisi={profilKisi} onKapat={() => setProfilKisi(null)} />}
     </div>
   );
 }

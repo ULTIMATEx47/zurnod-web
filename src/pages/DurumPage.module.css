@@ -304,3 +304,87 @@
     margin: 8px;
   }
 }
+
+/* Durum meta row */
+.durumSahibiRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+.durumSahibiAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.durumSahibiAvatarPlaceholder {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+.durumAksiyonlar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.durumMetinKart {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  padding: 40px 24px;
+  min-height: 200px;
+}
+/* Ilerleme bar (birden fazla durum) */
+.ilerlemeBar {
+  display: flex;
+  gap: 4px;
+  padding: 12px 16px 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+}
+.ilerlemeDilim {
+  flex: 1;
+  height: 3px;
+  background: rgba(255,255,255,0.3);
+  border-radius: 2px;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+.ilerlemeDilimAktif { background: white; }
+.ilerlemeDilimGecti { background: rgba(255,255,255,0.7); }
+/* Nav butonlar */
+.durumNavRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px 0;
+}
+.durumNavBtn {
+  background: var(--bg-quaternary);
+  color: var(--text-primary);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.durumNavBtn:disabled { opacity: 0.3; cursor: not-allowed; }
