@@ -145,22 +145,27 @@ export default function SunucularPage() {
     }
   }, [metin, kanalId, duzenlemeModu, cevapVerilen]);
 
-  const gorselSec = async () => {
+  const gorselSec = () => {
     if (!kanalId) return;
+    const localKanalId = kanalId;
     const input = document.createElement('input');
     input.type = 'file'; input.accept = 'image/*,video/*';
-    input.onchange = async (e: any) => {
+    input.onchange = (e: any) => {
       const file = e.target.files[0]; if (!file) return;
-      try {
-        const reader = new FileReader();
-        reader.onload = async (ev) => {
+      if (file.size > 10 * 1024 * 1024) { alert('Dosya 10MB den buyuk olamaz'); return; }
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        try {
           const base64 = ev.target?.result as string;
-          const url = await api.gorselYukle(base64);
           const tip = file.type.startsWith('video') ? 'video' : 'gorsel';
-          api.socketMesajGonder(kanalId, url, tip);
-        };
-        reader.readAsDataURL(file);
-      } catch (err) { console.error(err); }
+          await api.gorselKanalaGonder(localKanalId, base64, tip as 'gorsel' | 'video');
+        } catch (err: any) {
+          console.error('Gorsel yuklenemedi:', err);
+          alert('Medya gonderilemedi: ' + (err.message || ''));
+        }
+      };
+      reader.onerror = () => alert('Dosya okunamadi');
+      reader.readAsDataURL(file);
     };
     input.click();
   };

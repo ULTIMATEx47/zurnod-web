@@ -193,7 +193,17 @@ export const kullaniciBilgisiGetir = async (kullaniciId: string) => {
 // ==================== GORSEL ====================
 export const gorselYukle = async (base64: string) => {
   const yanit = await istek('POST', '/api/gorseller', { gorsel: base64 });
-  return yanit.url;
+  return yanit.url || (yanit as any).icerik || '';
+};
+
+// Gorsel/video DM'e yukle ve gonder (backend hem Cloudinary'ye yukler hem socket emit eder)
+export const gorselDmGonder = async (dmId: string, base64: string, tip: 'gorsel' | 'video') => {
+  return istek('POST', '/api/gorseller', { gorsel: base64, dmId, tip });
+};
+
+// Gorsel/video kanala yukle ve gonder
+export const gorselKanalaGonder = async (kanalId: string, base64: string, tip: 'gorsel' | 'video') => {
+  return istek('POST', '/api/gorseller', { gorsel: base64, kanalId, tip });
 };
 
 // ==================== SUNUCU UYELER / ROLLER ====================

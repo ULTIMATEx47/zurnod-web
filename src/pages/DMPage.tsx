@@ -90,18 +90,23 @@ export default function DMPage() {
     input.type = 'file'; input.accept = 'image/*,video/*';
     input.onchange = (e: any) => {
       const file = e.target.files[0]; if (!file) return;
+      // Dosya boyutu kontrol (max 10MB)
+      if (file.size > 10 * 1024 * 1024) { alert('Dosya 10MB den buyuk olamaz'); return; }
       setYukleniyor(true);
       const reader = new FileReader();
       reader.onload = async (ev) => {
         try {
           const base64 = ev.target?.result as string;
-          const url = await api.gorselYukle(base64);
           const tip = file.type.startsWith('video') ? 'video' : 'gorsel';
-          api.socketDmGonder(localDmId, url, tip);
-        } catch (err) { console.error('Gorsel yuklenemedi:', err); }
+          // Backend'e dmId ile gonder - hem yukler hem socket emit eder
+          await api.gorselDmGonder(localDmId, base64, tip as 'gorsel' | 'video');
+        } catch (err: any) {
+          console.error('Gorsel yuklenemedi:', err);
+          alert('Medya gonderilemedi: ' + (err.message || 'Bilinmeyen hata'));
+        }
         finally { setYukleniyor(false); }
       };
-      reader.onerror = () => setYukleniyor(false);
+      reader.onerror = () => { setYukleniyor(false); alert('Dosya okunamadi'); };
       reader.readAsDataURL(file);
     };
     input.click();

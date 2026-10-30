@@ -39,24 +39,30 @@ export default function DurumPage() {
     } catch (e) { console.error('durumlar alinamadi:', e); }
   };
 
-  const gorselYukle = async () => {
+  const gorselYukle = () => {
     const input = document.createElement('input');
     input.type = 'file'; input.accept = 'image/*,video/*';
     input.onchange = (e: any) => {
       const file = e.target.files[0]; if (!file) return;
+      if (file.size > 10 * 1024 * 1024) { alert('Dosya 10MB den buyuk olamaz'); return; }
       setYukleniyor(true);
       const reader = new FileReader();
       reader.onload = async (ev) => {
         try {
           const base64 = ev.target?.result as string;
+          // Once gorsel yukle, URL al
           const url = await api.gorselYukle(base64);
+          if (!url) throw new Error('URL alinamadi');
           const tip = file.type.startsWith('video') ? 'video' : 'gorsel';
+          // Sonra durum paylas
           await api.durumPaylas(tip, url, yeniDurumRenk);
           fetchDurumlar();
-        } catch (err) { console.error(err); }
-        finally { setYukleniyor(false); }
+        } catch (err: any) {
+          console.error('Durum gonderilemedi:', err);
+          alert('Gonderilemedi: ' + (err.message || 'Bilinmeyen hata'));
+        } finally { setYukleniyor(false); }
       };
-      reader.onerror = () => setYukleniyor(false);
+      reader.onerror = () => { setYukleniyor(false); alert('Dosya okunamadi'); };
       reader.readAsDataURL(file);
     };
     input.click();
