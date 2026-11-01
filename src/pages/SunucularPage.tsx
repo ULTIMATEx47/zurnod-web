@@ -262,6 +262,15 @@ export default function SunucularPage() {
         </button>
       </div>
 
+      {/* Mobil overlay - kanal paneli acikken arka plan karartma */}
+      {mobilKanalAcik && (
+        <div
+          className={s.overlayAcik}
+          onClick={() => setMobilKanalAcik(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 150, bottom: 56 }}
+        />
+      )}
+
       {/* Kanal listesi */}
       {secilenSunucu && (
         <div className={`${s.kanalPanel} ${mobilKanalAcik ? s.kanalPanelAcik : ''}`}>
@@ -308,7 +317,6 @@ export default function SunucularPage() {
             {/* Mobil: kanal paneli aç butonu */}
             <button
               className={s.mobilMenuBtn}
-              style={{ display: 'none' }}
               onClick={() => setMobilKanalAcik(v => !v)}
               title="Kanallar"
             >
