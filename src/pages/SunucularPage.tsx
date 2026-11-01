@@ -31,6 +31,8 @@ export default function SunucularPage() {
   const [yeniKanalTip, setYeniKanalTip] = useState<'yazi' | 'ses' | 'video'>('yazi');
   const [yeniKanalKat, setYeniKanalKat] = useState('Genel');
   const [uyelerPanel, setUyelerPanel] = useState(false);
+  const [uyelerListesi, setUyelerListesi] = useState<any[]>([]);
+  const [uyelerYukleniyor, setUyelerYukleniyor] = useState(false);
   const altRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const currentKanalId = useRef<string | undefined>(kanalId);
@@ -170,6 +172,22 @@ export default function SunucularPage() {
     input.click();
   };
 
+  const fetchUyeler = async (sid: string) => {
+    setUyelerYukleniyor(true);
+    try {
+      const data = await api.sunucuUyeleriGetir(sid);
+      const liste = Array.isArray(data)
+        ? data.map((u: any) => u.kullanici || u).filter((u: any) => u && u.kullaniciAdi)
+        : [];
+      setUyelerListesi(liste);
+    } catch (e) {
+      console.error('Uyeler alinamadi:', e);
+      setUyelerListesi([]);
+    } finally {
+      setUyelerYukleniyor(false);
+    }
+  };
+
   const sunucuOlustur = async () => {
     if (!yeniSunucuAd.trim()) return;
     try {
@@ -210,14 +228,16 @@ export default function SunucularPage() {
 
   const isSahip = secilenSunucu?.sahip === kullanici?.id || secilenSunucu?.sahip === kullanici?._id;
 
-  // Üye listesi - kullanici populate edilmiş olabilir veya olmayabilir
-  const uyeListesi = secilenSunucu?.uyeler?.map((uye: any) => {
-    if (uye && typeof uye === 'object') {
-      const k = uye.kullanici || uye;
-      if (k && typeof k === 'object' && k.kullaniciAdi) return k;
-    }
-    return null;
-  }).filter(Boolean) || [];
+  // Üye listesi - ayrıca fetchUyeler ile yüklenir
+  const uyeListesi = uyelerListesi.length > 0
+    ? uyelerListesi
+    : (secilenSunucu?.uyeler?.map((uye: any) => {
+        if (uye && typeof uye === 'object') {
+          const k = uye.kullanici || uye;
+          if (k && typeof k === 'object' && k.kullaniciAdi) return k;
+        }
+        return null;
+      }).filter(Boolean) || []);
 
   return (
     <div className={s.container}>
@@ -270,7 +290,11 @@ export default function SunucularPage() {
               </div>
             ))}
           </div>
-          <button className={s.uyelerBtn} onClick={() => setUyelerPanel(p => !p)}>
+          <button className={s.uyelerBtn} onClick={() => {
+            const newVal = !uyelerPanel;
+            setUyelerPanel(newVal);
+            if (newVal && sunucuId) fetchUyeler(sunucuId);
+          }}>
             👥 Üyeler ({secilenSunucu.uyeler?.length || 0})
           </button>
         </div>
@@ -364,7 +388,9 @@ export default function SunucularPage() {
           </div>
           <div className={s.uyelerList}>
             {uyeListesi.length === 0 && (
-              <p style={{ padding: 12, color: 'var(--text-muted)', fontSize: 13 }}>Üye bilgisi yüklenemedi</p>
+              <p style={{ padding: 12, color: 'var(--text-muted)', fontSize: 13 }}>
+                {uyelerYukleniyor ? 'Yukleniyor...' : 'Uye bulunamadi'}
+              </p>
             )}
             {uyeListesi.map((k: any) => (
               <button key={k._id} className={s.uyeItem} onClick={() => setProfilKisi(k)}>
