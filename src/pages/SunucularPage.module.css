@@ -435,3 +435,100 @@
   color: var(--text-secondary);
   letter-spacing: 0.5px;
 }
+
+
+/* Mobil menu butonu - sadece mobilde gorunur */
+.mobilMenuBtn {
+  display: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--bg-quaternary);
+  color: var(--text-secondary);
+  font-size: 16px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.mobilMenuBtn:hover { background: var(--bg-elevated); color: var(--text-primary); }
+
+
+/* ==================== MOBİL RESPONSIVE ==================== */
+@media (max-width: 768px) {
+  .container {
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Mobil menu butonunu goster */
+  .mobilMenuBtn {
+    display: flex !important;
+  }
+
+  /* Sunucu listesi mobilde gizle - sol sidebar zaten var */
+  .sunucuList {
+    display: none;
+  }
+
+  /* Kanal paneli mobilde tam genislik ama varsayilan gizli */
+  .kanalPanel {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 56px;
+    width: 260px;
+    z-index: 200;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 4px 0 20px rgba(0,0,0,0.5);
+  }
+
+  .kanalPanelAcik {
+    transform: translateX(0);
+  }
+
+  /* Chat mobilde tam genislik */
+  .chat {
+    width: 100% !important;
+    max-width: 100%;
+  }
+
+  /* Uyeler paneli mobilde drawer olarak */
+  .uyelerPanel {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 56px;
+    width: 240px;
+    z-index: 200;
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    box-shadow: -4px 0 20px rgba(0,0,0,0.5);
+  }
+
+  .uyelerPanelAcik {
+    transform: translateX(0);
+  }
+
+  /* Kanal header mobil butonlar */
+  .chatHeader {
+    padding: 0 8px;
+    gap: 6px;
+  }
+
+  /* Overlay - drawer acikken arka plan karartma */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    bottom: 56px;
+    background: rgba(0,0,0,0.5);
+    z-index: 150;
+    display: none;
+  }
+
+  .overlayAcik {
+    display: block;
+  }
+}

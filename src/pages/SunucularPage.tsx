@@ -33,6 +33,7 @@ export default function SunucularPage() {
   const [uyelerPanel, setUyelerPanel] = useState(false);
   const [uyelerListesi, setUyelerListesi] = useState<any[]>([]);
   const [uyelerYukleniyor, setUyelerYukleniyor] = useState(false);
+  const [mobilKanalAcik, setMobilKanalAcik] = useState(false);
   const altRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const currentKanalId = useRef<string | undefined>(kanalId);
@@ -263,7 +264,7 @@ export default function SunucularPage() {
 
       {/* Kanal listesi */}
       {secilenSunucu && (
-        <div className={s.kanalPanel}>
+        <div className={`${s.kanalPanel} ${mobilKanalAcik ? s.kanalPanelAcik : ''}`}>
           {secilenSunucu.banner && (
             <img src={secilenSunucu.banner} alt="banner" className={s.sunucuBanner} />
           )}
@@ -304,6 +305,15 @@ export default function SunucularPage() {
       {secilenKanal ? (
         <div className={s.chat}>
           <div className={s.chatHeader}>
+            {/* Mobil: kanal paneli aç butonu */}
+            <button
+              className={s.mobilMenuBtn}
+              style={{ display: 'none' }}
+              onClick={() => setMobilKanalAcik(v => !v)}
+              title="Kanallar"
+            >
+              ☰
+            </button>
             <span className={s.kanalIkon2}>{kanalIkonu(secilenKanal.tip)}</span>
             <span className={s.kanalBaslik}>{secilenKanal.ad}</span>
             {secilenKanal.konu && <span className={s.kanalKonu}>{secilenKanal.konu}</span>}
