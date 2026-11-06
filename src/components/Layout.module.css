@@ -136,6 +136,7 @@
   .main {
     order: 1;
     flex: 1;
+    height: calc(100vh - 56px);
     overflow: hidden;
   }
 }
